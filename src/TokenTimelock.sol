@@ -3,8 +3,8 @@
 pragma solidity 0.6.12;
 
 import "./lib/math/SafeMath.sol";
-import "./lib/token/IBEP20.sol";
-import "./lib/token/SafeBEP20.sol";
+import "./lib/token/BEP20/IBEP20.sol";
+import "./lib/token/BEP20/SafeBEP20.sol";
 
 contract TokenTimelock {
     using SafeMath for uint256;
