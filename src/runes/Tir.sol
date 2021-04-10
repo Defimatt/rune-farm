@@ -51,6 +51,10 @@ contract TirRune is BEP20('Tir', 'TIR') {
         mintable = false;
     }
 
+    function setDevAddress(address _devAddress) external onlyOwner() {
+        devAddress = _devAddress;
+    }
+
     function setFeeInfo(address _vaultAddress, address _charityAddress, address _devAddress, address _botAddress, uint256 _vaultFee, uint256 _charityFee, uint256 _devFee, uint256 _botFee) external
     {
         require(msg.sender == devAddress, "dev: wut?");
