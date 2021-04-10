@@ -2,9 +2,9 @@
 
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "./libs/IBEP20.sol";
-import "./libs/SafeBEP20.sol";
+import "./lib/math/SafeMath.sol";
+import "./lib/token/IBEP20.sol";
+import "./lib/token/SafeBEP20.sol";
 
 contract TokenTimelock {
     using SafeMath for uint256;
@@ -29,4 +29,10 @@ contract TokenTimelock {
         token.safeTransfer(beneficiary, amount);
     }
 
+    function specificRelease(IBEP20 _token) external {
+        require(now >= releaseTime, "TokenTimelock: current time is before release time");
+        uint256 amount = _token.balanceOf(address(this));
+        require(amount > 0, "TokenTimelock: no tokens to release");
+        _token.safeTransfer(beneficiary, amount);
+    }
 }
