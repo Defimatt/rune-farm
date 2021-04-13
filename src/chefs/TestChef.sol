@@ -5,7 +5,7 @@ import "../lib/token/BEP20/IBEP20.sol";
 import "../lib/token/BEP20/SafeBEP20.sol";
 import "../lib/access/Ownable.sol";
 
-import "../runes/Tir.sol";
+import "../runes/Test.sol";
 
 // MasterChef is the master of Rune. He can make Rune and he is a fair guy.
 //
@@ -14,7 +14,7 @@ import "../runes/Tir.sol";
 // distributed and the community can show to govern itself.
 //
 // Have fun reading it. Hopefully it's bug-free. God bless.
-contract TirChef is Ownable {
+contract TestChef is Ownable {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
@@ -45,7 +45,7 @@ contract TirChef is Ownable {
     }
 
     // The RUNE!
-    TirRune public rune;
+    TestRune public rune;
     // Dev address
     address public devAddress;
     // Charity address
@@ -71,7 +71,7 @@ contract TirChef is Ownable {
 
     // Withdraw fee
     uint256 public vaultWithdrawPercent = 0;
-    IBEP20 withdrawFeeToken;
+    IBEP20 public withdrawFeeToken;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -88,7 +88,7 @@ contract TirChef is Ownable {
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
 
     constructor(
-        TirRune _rune,
+        TestRune _rune,
         address _devAddress,
         address _vaultAddress,
         address _charityAddress,

@@ -974,13 +974,13 @@ contract BEP20 is Context, IBEP20, Ownable {
     }
 }
 
-// File: src/runes/Tir.sol
+// File: src/runes/Test.sol
 
 pragma solidity 0.6.12;
 
 
-// Tir Rune
-contract TirRune is BEP20('Tir', 'TIR') {
+// Test Rune
+contract TestRune is BEP20('Test', 'TEST') {
     uint256 public vaultFee = 0;
     uint256 public charityFee = 0;
     uint256 public devFee = 0;
@@ -1175,7 +1175,7 @@ contract TirRune is BEP20('Tir', 'TIR') {
 
 }
 
-// File: src/chefs/TirChef.sol
+// File: src/chefs/TestChef.sol
 
 pragma solidity 0.6.12;
 
@@ -1191,7 +1191,7 @@ pragma solidity 0.6.12;
 // distributed and the community can show to govern itself.
 //
 // Have fun reading it. Hopefully it's bug-free. God bless.
-contract TirChef is Ownable {
+contract TestChef is Ownable {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
@@ -1222,7 +1222,7 @@ contract TirChef is Ownable {
     }
 
     // The RUNE!
-    TirRune public rune;
+    TestRune public rune;
     // Dev address
     address public devAddress;
     // Charity address
@@ -1248,7 +1248,7 @@ contract TirChef is Ownable {
 
     // Withdraw fee
     uint256 public vaultWithdrawPercent = 0;
-    IBEP20 withdrawFeeToken;
+    IBEP20 public withdrawFeeToken;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -1265,7 +1265,7 @@ contract TirChef is Ownable {
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
 
     constructor(
-        TirRune _rune,
+        TestRune _rune,
         address _devAddress,
         address _vaultAddress,
         address _charityAddress,
