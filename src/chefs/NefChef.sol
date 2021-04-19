@@ -95,8 +95,7 @@ contract NefChef is Ownable, ERC721Holder {
     // The block number when RUNE mining starts.
     uint256 public startBlock;
 
-    mapping (address => uint256[]) public userEquippedItems;
-    mapping (uint16 => uint256) public userEquippedItemMap;
+    mapping (address => uint256) public userEquippedItemMap;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -106,6 +105,7 @@ contract NefChef is Ownable, ERC721Holder {
 
     constructor(
         NefRune _rune,
+        address _nefTokenAddress,
         address _profileAddress,
         address _itemMintingStationAddress,
         address _itemsAddress,
@@ -130,15 +130,11 @@ contract NefChef is Ownable, ERC721Holder {
         elToken = 0x210C14fbeCC2BD9B6231199470DA12AD45F64D45;
         eldToken = 0xe00B8109bcB70B1EDeb4cf87914efC2805020995;
         tirToken = 0x125a3E00a9A11317d4d95349E68Ba0bC744ADDc4;
-        nefToken = 0xBfd3BfaD349fbC96EBAEC737f49239eE5168151F;
+        nefToken = _nefTokenAddress;
     }
 
     function poolLength() external view returns (uint256) {
         return poolInfo.length;
-    }
-
-    function userItemsLength(address _user) external view returns (uint256) {
-        return userEquippedItems[_user].length;
     }
 
     // Add a new lp to the pool. Can only be called by the owner.
@@ -219,8 +215,7 @@ contract NefChef is Ownable, ERC721Holder {
         pool.lastRewardBlock = block.number;
     }
 
-    function stringToUint(string memory s) internal view returns (uint256) {
-        bytes memory b = bytes(s);
+    function stringToUint(bytes memory b) internal view returns (uint256) {
         uint256 result = 0;
         for (uint i = 0; i < b.length; i++) { // c = b[i] was not needed
             if (uint8(b[i]) >= 48 && uint8(b[i]) <= 57) {
@@ -230,56 +225,146 @@ contract NefChef is Ownable, ERC721Holder {
         return result; // this was missing
     }
 
-    function uintToString(uint256 v) internal view returns (string memory) {
-        uint256 maxlength = 100;
-        bytes memory reversed = new bytes(maxlength);
-        uint i = 0;
-        while (v != 0) {
-            uint remainder = v % 10;
-            v = v / 10;
-            reversed[i++] = byte(48 + uint8(remainder));
+    // function uintToString(uint256 v) internal view returns (string memory) {
+    //     if (v == 0) return "0";
+
+    //     uint256 maxlength = 100;
+    //     bytes memory reversed = new bytes(maxlength);
+    //     uint i = 0;
+    //     while (v != 0) {
+    //         uint remainder = v % 10;
+    //         v = v / 10;
+    //         reversed[i++] = byte(48 + uint8(remainder));
+    //     }
+    //     bytes memory s = new bytes(i); // i + 1 is inefficient
+    //     for (uint j = 0; j < i; j++) {
+    //         s[j] = reversed[i - j - 1]; // to avoid the off-by-one error
+    //     }
+    //     string memory str = string(s);  // memory isn't implicitly convertible to storage
+    //     return str;
+    // }
+
+    function uintToString(
+        uint v
+    )
+        pure
+        public
+        returns (string memory)
+    {
+        uint w = v;
+        bytes32 x;
+        if (v == 0) {
+            x = "0";
+        } else {
+            while (w > 0) {
+                x = bytes32(uint(x) / (2 ** 8));
+                x |= bytes32(((w % 10) + 48) * 2 ** (8 * 31));
+                w /= 10;
+            }
         }
-        bytes memory s = new bytes(i); // i + 1 is inefficient
-        for (uint j = 0; j < i; j++) {
-            s[j] = reversed[i - j - 1]; // to avoid the off-by-one error
+
+        bytes memory bytesString = new bytes(32);
+        uint charCount = 0;
+        uint j = 0;
+        for (j = 0; j < 32; j++) {
+            byte char = byte(bytes32(uint(x) * 2 ** (8 * j)));
+            if (char != 0) {
+                bytesString[charCount] = char;
+                charCount++;
+            }
         }
-        string memory str = string(s);  // memory isn't implicitly convertible to storage
-        return str;
+        bytes memory resultBytes = new bytes(charCount);
+        for (j = 0; j < charCount; j++) {
+            resultBytes[j] = bytesString[j];
+        }
+
+        return string(resultBytes);
     }
 
     function getSlice(uint256 begin, uint256 end, string memory text) public pure returns (string memory) {
-        bytes memory a = new bytes(end-begin+1);
-        for(uint i=0;i<=end-begin;i++){
-            a[i] = bytes(text)[i+begin-1];
+        bytes memory a = new bytes(end-begin);
+        for(uint i=0;i<end-begin;i++){
+            a[i] = bytes(text)[i+begin];
         }
         return string(a);    
     }
 
+    function parseInt(string memory _a) internal pure returns (uint _parsedInt) {
+        return parseInt(_a, 0);
+    }
+
+    function parseInt(string memory _a, uint _b) internal pure returns (uint _parsedInt) {
+        bytes memory bresult = bytes(_a);
+        uint mint = 0;
+        bool decimals = false;
+        for (uint i = 0; i < bresult.length; i++) {
+            if ((uint(uint8(bresult[i])) >= 48) && (uint(uint8(bresult[i])) <= 57)) {
+                if (decimals) {
+                   if (_b == 0) {
+                       break;
+                   } else {
+                       _b--;
+                   }
+                }
+                mint *= 10;
+                mint += uint(uint8(bresult[i])) - 48;
+            } else if (uint(uint8(bresult[i])) == 46) {
+                decimals = true;
+            }
+        }
+        if (_b > 0) {
+            mint *= 10 ** _b;
+        }
+        return mint;
+    }
+
+    // function uint2str(uint _i) internal pure returns (string memory _uintAsString) {
+    //     if (_i == 0) {
+    //         return "0";
+    //     }
+    //     uint j = _i;
+    //     uint len;
+    //     while (j != 0) {
+    //         len++;
+    //         j /= 10;
+    //     }
+    //     bytes memory bstr = new bytes(len);
+    //     uint k = len;
+    //     while (_i != 0) {
+    //         k = k-1;
+    //         uint8 temp = (48 + uint8(_i - _i / 10 * 10));
+    //         bytes1 b1 = bytes1(temp);
+    //         bstr[k] = b1;
+    //         _i /= 10;
+    //     }
+    //     return string(bstr);
+    // }
+
     function getItem(uint256 _tokenId) public view returns (ArcaneItemFactoryV1.ArcaneItem memory) {
         // Not exactly efficient but easy to read
         string memory tokenIdStr = uintToString(_tokenId);
-        uint8 version = uint8(stringToUint(getSlice(1, 4, tokenIdStr)));
+        uint8 version = uint8(parseInt(getSlice(1, 4, tokenIdStr)));
 
         ArcaneItemFactoryV1.ArcaneItemModifier[] memory mods = new ArcaneItemFactoryV1.ArcaneItemModifier[](3);
 
         mods[0] = ArcaneItemFactoryV1.ArcaneItemModifier({
-            variant: uint8(stringToUint(getSlice(9, 10, tokenIdStr))),
-            value: uint16(stringToUint(getSlice(10, 13, tokenIdStr)))
+            variant: uint8(parseInt(getSlice(9, 10, tokenIdStr))),
+            value: uint16(parseInt(getSlice(10, 13, tokenIdStr)))
         });
 
         mods[1] = ArcaneItemFactoryV1.ArcaneItemModifier({
-            variant: uint8(stringToUint(getSlice(13, 14, tokenIdStr))),
-            value: uint16(stringToUint(getSlice(14, 17, tokenIdStr)))
+            variant: uint8(parseInt(getSlice(13, 14, tokenIdStr))),
+            value: uint16(parseInt(getSlice(14, 17, tokenIdStr)))
         });
 
         mods[2] = ArcaneItemFactoryV1.ArcaneItemModifier({
-            variant: uint8(stringToUint(getSlice(17, 18, tokenIdStr))),
-            value: uint16(stringToUint(getSlice(18, 21, tokenIdStr)))
+            variant: uint8(parseInt(getSlice(17, 18, tokenIdStr))),
+            value: uint16(parseInt(getSlice(18, 21, tokenIdStr)))
         });
 
         ArcaneItemFactoryV1.ArcaneItem memory item = ArcaneItemFactoryV1.ArcaneItem({
             version: version,
-            itemId: uint16(stringToUint(getSlice(4, 9, tokenIdStr))),
+            itemId: uint16(parseInt(getSlice(4, 9, tokenIdStr))),
             mods: mods
         });
 
@@ -324,14 +409,12 @@ contract NefChef is Ownable, ERC721Holder {
 
         require(_msgSender() == nftToken.ownerOf(_tokenId), "Only NFT owner can register");
 
-        ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
-        require(userEquippedItemMap[item.itemId] != 0, "Item already equiped");
+        require(userEquippedItemMap[_msgSender()] == 0, "Item already equiped");
+
+        userEquippedItemMap[_msgSender()] = _tokenId;
 
         // Transfer NFT to this contract
         nftToken.safeTransferFrom(_msgSender(), address(this), _tokenId);
-
-        userEquippedItemMap[item.itemId] = userEquippedItems[_msgSender()].length+1;
-        userEquippedItems[_msgSender()].push(_tokenId);
     }
 
     function _unequipItem(uint256 _tokenId) public {
@@ -339,11 +422,9 @@ contract NefChef is Ownable, ERC721Holder {
 
         IERC721 nftToken = IERC721(itemsAddress);
 
-        ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
+        require(userEquippedItemMap[_msgSender()] == _tokenId, "Item not equipped");
 
-        userEquippedItemMap[item.itemId] = 0;
-
-        delete userEquippedItems[_msgSender()][userEquippedItemMap[item.itemId]-1];
+        userEquippedItemMap[_msgSender()] = 0;
 
         // Transfer NFT back to user
         nftToken.safeTransferFrom(address(this), _msgSender(), _tokenId);
@@ -371,9 +452,10 @@ contract NefChef is Ownable, ERC721Holder {
         if (user.amount > 0) {
             uint256 pending = user.amount.mul(pool.accRunePerShare).div(1e12).sub(user.rewardDebt);
             if(pending > 0) {
-                uint l = userEquippedItems[_msgSender()].length;
-                for (uint i = 0; i < l; i++) {
-                    ArcaneItemFactoryV1.ArcaneItem memory item = getItem(userEquippedItems[_msgSender()][i]);
+                uint256 tokenId = userEquippedItemMap[_msgSender()];
+
+                if (tokenId > 0) {
+                    ArcaneItemFactoryV1.ArcaneItem memory item = getItem(tokenId);
 
                     if (item.itemId == 1 && item.version == 1) {
                         if (item.mods[1].value > 0) {
@@ -395,7 +477,7 @@ contract NefChef is Ownable, ERC721Holder {
                         uint256 bonusAmount = pending.mul(item.mods[0].value).div(100);
                         IBEP20(nefToken).safeTransferFrom(vaultAddress, address(msg.sender), bonusAmount);
 
-                        emit HarvestBonus(address(msg.sender), bonusAmount);
+                        emit HarvestBonus(msg.sender, bonusAmount);
                     }
                 }
                 safeRuneTransfer(msg.sender, pending);
@@ -425,9 +507,10 @@ contract NefChef is Ownable, ERC721Holder {
         updatePool(_pid);
         uint256 pending = user.amount.mul(pool.accRunePerShare).div(1e12).sub(user.rewardDebt);
         if(pending > 0) {
-            uint l = userEquippedItems[_msgSender()].length;
-            for (uint i = 0; i < l; i++) {
-                ArcaneItemFactoryV1.ArcaneItem memory item = getItem(userEquippedItems[_msgSender()][i]);
+            uint256 tokenId = userEquippedItemMap[_msgSender()];
+
+            if (tokenId > 0) {
+                ArcaneItemFactoryV1.ArcaneItem memory item = getItem(tokenId);
 
                 if (item.itemId == 1 && item.version == 1) {
                     if (item.mods[1].value > 0) {
@@ -449,7 +532,7 @@ contract NefChef is Ownable, ERC721Holder {
                     uint256 bonusAmount = pending.mul(item.mods[0].value).div(100);
                     IBEP20(nefToken).safeTransferFrom(vaultAddress, address(msg.sender), bonusAmount);
 
-                    emit HarvestBonus(address(msg.sender), bonusAmount);
+                    emit HarvestBonus(msg.sender, bonusAmount);
                 }
             }
             safeRuneTransfer(msg.sender, pending);
