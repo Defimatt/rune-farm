@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 import "./lib/math/SafeMath.sol";
 import "./lib/token/BEP20/IBEP20.sol";
 import "./lib/token/BEP20/SafeBEP20.sol";
+import "./lib/token/BEP20/BEP20.sol";
 import "./lib/access/Ownable.sol";
 
 import "./ArcaneItemMintingStation.sol";
@@ -36,6 +37,12 @@ contract ArcaneItemFactoryV1 is Ownable {
     bool private mintingEnabled = true;
 
     uint8 public constant version = 1;
+
+    IBEP20 public elToken;
+    IBEP20 public tirToken;
+
+    // Vault address
+    address public vaultAddress;
 
     // Event to notify when NFT is successfully minted
     event ItemMint(
@@ -80,6 +87,9 @@ contract ArcaneItemFactoryV1 is Ownable {
         tokenPrice = _tokenPrice;
         ipfsHash = _ipfsHash;
         startBlockNumber = _startBlockNumber;
+        elToken = BEP20(0x210C14fbeCC2BD9B6231199470DA12AD45F64D45);
+        tirToken = BEP20(0x125a3E00a9A11317d4d95349E68Ba0bC744ADDc4);
+        vaultAddress = address(0x602a27bBf954b6945534a84C8c88FB8cA9E92B7F);
     }
 
     function setRecipe(address _item1, address _item2, uint16 _version, uint16 _itemId) external onlyOwner {
@@ -107,9 +117,8 @@ contract ArcaneItemFactoryV1 is Ownable {
     }
 
     function randMod(uint _modulus) internal returns(uint) {
-        bytes memory addressBytes = abi.encodePacked(address(msg.sender));
-        randNonce += uint(uint8(addressBytes[0]));
-        return uint(keccak256(abi.encodePacked(now, msg.sender, randNonce))) % _modulus;
+        randNonce += 1;
+        return uint(keccak256(abi.encodePacked(now, block.difficulty, msg.sender, randNonce))) % _modulus;
     }
     
     function stringToUint(string memory s) internal view returns (uint256) {
@@ -124,6 +133,8 @@ contract ArcaneItemFactoryV1 is Ownable {
     }
 
     function uintToString(uint256 v) internal view returns (string memory) {
+        if (v == 0) return "0";
+
         uint256 maxlength = 100;
         bytes memory reversed = new bytes(maxlength);
         uint i = 0;
@@ -155,24 +166,32 @@ contract ArcaneItemFactoryV1 is Ownable {
     function pad(string memory str, uint8 length) internal pure returns (string memory) {
         string memory padding = "000000000";
 
-        if (length > str.length) {
-            return string(abi.encodePacked(0, getSlice(length - str.length), str));
-        } else {
-            return str;
-        }
+        return getSlice(0, length - bytes(str).length, padding);
     }
+
+    // function pad(string memory str, uint8 length) internal pure returns (string memory) {
+    //     string memory padding = "000000000";
+
+    //     if (length > bytes(str).length) {
+    //         return string(abi.encodePacked(getSlice(0, length - bytes(str).length, padding), str));
+    //     } else {
+    //         return str;
+    //     }
+    // }
 
     function getTokenIdFromRecipe(ArcaneRecipe storage recipe) internal returns (uint256) {
         string memory _version = uintToString(recipe.version);
         string memory itemId = uintToString(recipe.itemId);
         string memory mod1 = uintToString(recipe.mods[0].variant);
-        string memory mod2 = recipe.mods[0].minRange == recipe.mods[0].maxRange ? uintToString(recipe.mods[0].minRange) : uintToString(recipe.mods[0].minRange + randMod(recipe.mods[0].maxRange));
+        string memory mod2 = recipe.mods[0].minRange == recipe.mods[0].maxRange ? uintToString(recipe.mods[0].minRange) : uintToString(recipe.mods[0].minRange + randMod(recipe.mods[0].maxRange - recipe.mods[0].minRange));
         string memory mod3 = uintToString(recipe.mods[1].variant);
-        string memory mod4 = recipe.mods[1].minRange == recipe.mods[1].maxRange ? uintToString(recipe.mods[1].minRange) : uintToString(recipe.mods[1].minRange + randMod(recipe.mods[1].maxRange));
+        string memory mod4 = recipe.mods[1].minRange == recipe.mods[1].maxRange ? uintToString(recipe.mods[1].minRange) : uintToString(recipe.mods[1].minRange + randMod(recipe.mods[1].maxRange - recipe.mods[1].minRange));
         string memory mod5 = uintToString(recipe.mods[2].variant);
-        string memory mod6 = recipe.mods[2].minRange == recipe.mods[2].maxRange ? uintToString(recipe.mods[2].minRange) : uintToString(recipe.mods[2].minRange + randMod(recipe.mods[2].maxRange));
+        string memory mod6 = recipe.mods[2].minRange == recipe.mods[2].maxRange ? uintToString(recipe.mods[2].minRange) : uintToString(recipe.mods[2].minRange + randMod(recipe.mods[2].maxRange - recipe.mods[2].minRange));
 
-        return uint256(stringToUint(string(abi.encodePacked(pad(_version, 2), pad(itemId, 5), pad(mod1, 3), pad(mod2, 3), pad(mod3, 3), pad(mod4, 3), pad(mod5, 3), pad(mod6, 3)))));
+        ///return stringToUint(string("1", abi.encodePacked(pad(_version, 3), pad(itemId, 5), pad(mod1, 3), pad(mod2, 3), pad(mod3, 3), pad(mod4, 3), pad(mod5, 3), pad(mod6, 3))));
+
+        return stringToUint(string(abi.encodePacked("1001000011", bytes(mod2).length > 1 ? "0" : "00", mod2, "100", mod4, "100", mod6)));
     }
 
     /**
@@ -191,8 +210,11 @@ contract ArcaneItemFactoryV1 is Ownable {
 
         // Send RUNE tokens to this contract
         if (tokenPrice > 0) {
-            runeToken.safeTransferFrom(senderAddress, address(this), tokenPrice);
+            runeToken.safeTransferFrom(senderAddress, vaultAddress, tokenPrice);
         }
+
+        elToken.safeTransferFrom(senderAddress, vaultAddress, 1 ether / 10);
+        tirToken.safeTransferFrom(senderAddress, vaultAddress, 1 ether / 10);
 
         string memory tokenURI = itemIdURIs[recipe.itemId];
 

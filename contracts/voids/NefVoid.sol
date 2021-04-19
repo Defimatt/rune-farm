@@ -980,7 +980,7 @@ pragma solidity 0.6.12;
 
 
 // Nef Rune
-contract NefRune is BEP20('Nef', 'NEF') {
+contract NefRune is BEP20('Nef Test', 'NEFTEST') {
     uint256 public vaultFee = 0;
     uint256 public charityFee = 0;
     uint256 public devFee = 0;
@@ -1036,7 +1036,7 @@ contract NefRune is BEP20('Nef', 'NEF') {
     {
         require(msg.sender == devAddress, "dev: wut?");
         require (_vaultAddress != address(0) && _charityAddress != address(0) && _devAddress != address(0) && _botAddress != address(0), "RUNE::setFeeInfo: Cannot use zero address");
-        require (_vaultFee <= 100 && _charityFee <= 10 && _devFee <= 10 && _botFee <= 2000, "RUNE::_transfer: Fee constraints");
+        require (_vaultFee <= 1000 && _charityFee <= 50 && _devFee <= 50 && _botFee <= 4000, "RUNE::_transfer: Fee constraints");
 
         vaultAddress = _vaultAddress;
         charityAddress = _charityAddress;

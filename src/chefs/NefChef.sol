@@ -25,9 +25,6 @@ contract NefChef is Ownable, ERC721Holder {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
-    ArcaneProfile public profile;
-    ArcaneItemMintingStation public itemMintingStation;
-
     // Info of each user.
     struct UserInfo {
         ArcaneItemFactoryV1.ArcaneItem[] items; // Equiped items
@@ -70,6 +67,9 @@ contract NefChef is Ownable, ERC721Holder {
     // Void address
     address public voidAddress;
 
+    address public profileAddress;
+    address public itemMintingStationAddress;
+
 
     // Mint percent breakdown
     uint256 public devMintPercent = 0;
@@ -86,15 +86,14 @@ contract NefChef is Ownable, ERC721Holder {
 
     address public itemsAddress;
 
-    IBEP20 runeToken;
-    IBEP20 elToken;
-    IBEP20 eldToken;
-    IBEP20 tirToken;
+    address public runeToken;
+    address public elToken;
+    address public eldToken;
+    address public tirToken;
+    address public nefToken;
 
     // Map if address has already claimed their Worldstone Shard
     mapping(address => bool) public hasClaimedShard;
-
-    uint256 accumulatedFarmingBonus = 0;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -105,18 +104,19 @@ contract NefChef is Ownable, ERC721Holder {
     // The block number when RUNE mining starts.
     uint256 public startBlock;
 
-    uint public randNonce;
     mapping (address => uint256[]) public userEquippedItems;
+    mapping (uint16 => uint256) public userEquippedItemMap;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event HarvestFee(address indexed user, uint256 amount);
+    event HarvestBonus(address indexed user, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
 
     constructor(
         NefRune _rune,
         address _profileAddress,
-        address _itemMintingStation,
+        address _itemMintingStationAddress,
         address _itemsAddress,
         address _devAddress,
         address _vaultAddress,
@@ -126,8 +126,8 @@ contract NefChef is Ownable, ERC721Holder {
         uint256 _startBlock
     ) public {
         rune = _rune;
-        profile = ArcaneProfile(_profileAddress);
-        itemMintingStation = ArcaneItemMintingStation(_itemMintingStation);
+        profileAddress = _profileAddress;
+        itemMintingStationAddress = _itemMintingStationAddress;
         itemsAddress = _itemsAddress;
         devAddress = _devAddress;
         vaultAddress = _vaultAddress;
@@ -135,13 +135,11 @@ contract NefChef is Ownable, ERC721Holder {
         voidAddress = _voidAddress;
         runePerBlock = _runePerBlock;
         startBlock = _startBlock;
-        runeToken = BEP20(0xA9776B590bfc2f956711b3419910A5Ec1F63153E);
-        elToken = BEP20(0x210C14fbeCC2BD9B6231199470DA12AD45F64D45);
-        eldToken = BEP20(0xe00B8109bcB70B1EDeb4cf87914efC2805020995);
-        tirToken = BEP20(0x125a3E00a9A11317d4d95349E68Ba0bC744ADDc4);
-
-        bytes memory addressBytes = abi.encodePacked(address(this));
-        randNonce += uint(uint8(addressBytes[0]));
+        runeToken = 0xA9776B590bfc2f956711b3419910A5Ec1F63153E;
+        elToken = 0x210C14fbeCC2BD9B6231199470DA12AD45F64D45;
+        eldToken = 0xe00B8109bcB70B1EDeb4cf87914efC2805020995;
+        tirToken = 0x125a3E00a9A11317d4d95349E68Ba0bC744ADDc4;
+        nefToken = 0xBfd3BfaD349fbC96EBAEC737f49239eE5168151F;
     }
 
     function poolLength() external view returns (uint256) {
@@ -238,9 +236,9 @@ contract NefChef is Ownable, ERC721Holder {
         uint16 itemId = 10000;
         string memory tokenURI = 'mtwirsqawjuoloq2gvtyug2tc3jbf5htm2zeo4rsknfiv3fdp46a/item-10000.json';
 
-        uint256 tokenId = 0x26E93F3A855F59679221E1D265D0C3E00572E69EB36CC000000000000000000; //01100000000000000000000000000000000000000000000000000000000000000000000000000;
+        uint256 tokenId = 0x16220673BECD24F6889ACE92996B36659B4D8F5E05DABB000000000000000000; //10011000000000000000000000000000000000000000000000000000000000000000000000000;
 
-        itemMintingStation.mint(
+        ArcaneItemMintingStation(itemMintingStationAddress).mint(
             _msgSender(),
             tokenURI,
             itemId,
@@ -248,12 +246,6 @@ contract NefChef is Ownable, ERC721Holder {
         );
     }
 
-    function randMod(uint _modulus) internal returns(uint) {
-        bytes memory addressBytes = abi.encodePacked(address(msg.sender));
-        randNonce += uint(uint8(addressBytes[0]));
-        return uint(keccak256(abi.encodePacked(now, msg.sender, randNonce))) % _modulus;
-    }
-    
     function stringToUint(string memory s) internal view returns (uint256) {
         bytes memory b = bytes(s);
         uint256 result = 0;
@@ -290,18 +282,14 @@ contract NefChef is Ownable, ERC721Holder {
         return string(a);    
     }
 
-    function concat(string memory a, string memory b, string memory c, string memory d, string memory e) internal pure returns (string memory) {
-        return string(abi.encodePacked(a, b, c, d, e));
-    }
-
     function getItem(uint256 _tokenId) public view returns (ArcaneItemFactoryV1.ArcaneItem memory) {
         // Not exactly efficient but easy to read
         string memory tokenIdStr = uintToString(_tokenId);
-        uint8 version = uint8(stringToUint(getSlice(0, 2, tokenIdStr)));
+        uint8 version = uint8(stringToUint(getSlice(1, 4, tokenIdStr)));
 
         ArcaneItemFactoryV1.ArcaneItemModifier[] memory mods = new ArcaneItemFactoryV1.ArcaneItemModifier[](17);
         uint l = 70;
-        for (uint i = 5; i+4 < l; i+4) {
+        for (uint i = 9; i+4 < l; i+4) {
             uint8 _variant = uint8(stringToUint(getSlice(i, i+1, tokenIdStr)));
             uint16 _value = uint16(stringToUint(getSlice(i+1, i+4, tokenIdStr)));
 
@@ -315,7 +303,7 @@ contract NefChef is Ownable, ERC721Holder {
 
         ArcaneItemFactoryV1.ArcaneItem memory item = ArcaneItemFactoryV1.ArcaneItem({
             version: version,
-            itemId: uint16(stringToUint(getSlice(2, 5, tokenIdStr))),
+            itemId: uint16(stringToUint(getSlice(4, 9, tokenIdStr))),
             mods: mods
         });
 
@@ -337,7 +325,7 @@ contract NefChef is Ownable, ERC721Holder {
             nftAddress,
             tokenId,
             isActive
-        ) = profile.getUserProfile(_address);
+        ) = ArcaneProfile(profileAddress).getUserProfile(_address);
         
         
         ArcaneProfile.User memory user = ArcaneProfile.User({
@@ -353,52 +341,47 @@ contract NefChef is Ownable, ERC721Holder {
     }
 
     function equipItem(uint256 _tokenId) public {
-        // Require they have an active profile
-        ArcaneProfile.User memory user = getUserProfile(_msgSender());
-
-        require(user.isActive == true, "User must be active");
+        // massUpdatePools();
 
         // Loads the interface to deposit the NFT contract
         IERC721 nftToken = IERC721(itemsAddress);
 
         require(_msgSender() == nftToken.ownerOf(_tokenId), "Only NFT owner can register");
+
+        ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
+        require(userEquippedItemMap[item.itemId] == 0, "Item already equiped");
 
         // Transfer NFT to this contract
         nftToken.safeTransferFrom(_msgSender(), address(this), _tokenId);
 
+        userEquippedItemMap[item.itemId] = userEquippedItems[_msgSender()].length+1;
         userEquippedItems[_msgSender()].push(_tokenId);
+    }
+
+    function _unequipItem(uint256 _tokenId) public {
+        // massUpdatePools();
+
+        IERC721 nftToken = IERC721(itemsAddress);
 
         ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
+        require(userEquippedItemMap[item.itemId] != 0, "Item already equiped");
 
-        if (item.itemId == 1 && item.version == 1) {
-            uint256 farmingBonusPercent = item.mods[0].value;
+        userEquippedItemMap[item.itemId] = 0;
 
-            accumulatedFarmingBonus = accumulatedFarmingBonus + farmingBonusPercent;
-        }
+        delete userEquippedItems[_msgSender()][userEquippedItemMap[item.itemId]-1];
+
+        // Transfer NFT back to user
+        nftToken.safeTransferFrom(address(this), _msgSender(), _tokenId);
     }
 
     function unequipItem(uint256 _tokenId) public {
-        // Require they have an active profile
-        ArcaneProfile.User memory user = getUserProfile(_msgSender());
+        // massUpdatePools();
+        _unequipItem(_tokenId);
+    }
 
-        require(user.isActive == true, "User must be active");
-
-        // Loads the interface to deposit the NFT contract
-        IERC721 nftToken = IERC721(itemsAddress);
-
-        require(_msgSender() == nftToken.ownerOf(_tokenId), "Only NFT owner can register");
-        userEquippedItems[_msgSender()].push(_tokenId);
-
-        ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
-
-        if (item.itemId == 1 && item.version == 1) {
-            uint256 farmingBonusPercent = item.mods[0].value;
-
-            accumulatedFarmingBonus = accumulatedFarmingBonus - farmingBonusPercent;
-        }
-
-        // Transfer NFT to this contract
-        nftToken.safeTransferFrom(address(this), _msgSender(), _tokenId);
+    function emergencyUnequipItem(uint256 _tokenId) public {
+        require(runePerBlock == 0, "Emission must be zero");
+        _unequipItem(_tokenId);
     }
 
     // Deposit LP tokens to MasterChef for RUNE allocation.
@@ -418,11 +401,8 @@ contract NefChef is Ownable, ERC721Holder {
                     ArcaneItemFactoryV1.ArcaneItem memory item = getItem(userEquippedItems[_msgSender()][i]);
 
                     if (item.itemId == 1 && item.version == 1) {
-                        uint16 range = 15 - 5;
-                        pending = pending.add(pending.mul(range).mul(item.mods[0].value).div(10000));
-                            
                         if (item.mods[1].value > 0) {
-                            IBEP20 feeToken;
+                            address feeToken;
                             if (item.mods[2].value == 1) {
                                 feeToken = elToken;
                             } else if (item.mods[2].value == 2) {
@@ -431,29 +411,17 @@ contract NefChef is Ownable, ERC721Holder {
                                 feeToken = runeToken;
                             }
 
-                            uint16 range = 1 - 0;
-                            uint256 feeAmount = pending.mul(range).mul(item.mods[1].value).div(10000);
-                            feeToken.safeTransferFrom(address(msg.sender), vaultAddress, feeAmount);
+                            uint256 feeAmount = pending.mul(item.mods[1].value).div(100);
+                            IBEP20(feeToken).safeTransferFrom(address(msg.sender), vaultAddress, feeAmount);
                             
                             emit HarvestFee(vaultAddress, feeAmount);
                         }
+
+                        uint256 bonusAmount = pending.mul(item.mods[0].value).div(100);
+                        IBEP20(nefToken).safeTransferFrom(vaultAddress, address(msg.sender), bonusAmount);
+
+                        emit HarvestBonus(address(msg.sender), bonusAmount);
                     }
-
-                    // uint l = item.attributes.length;
-                    // for (uint i = 0; i < l; i++) {
-                    //     ArcaneItemFactoryV1.ArcaneItemModifier memory attribute = item.attributes[i];
-
-                    //     if (attribute.modifierId == 50001) {
-                    //         uint8 farmingBonusPercent = attribute.modifiers[0]; // 1-20
-
-                    //         accumulatedFarmingBonus = accumulatedFarmingBonus + farmingBonusPercent;
-                    //     }
-                    //     else if (attribute.modifierId == 50002) {
-                    //         uint8 depositFee = attribute.modifiers[0]; // deposit, withdraw, harvest, or burn
-                    //         uint8 feeToken = attribute.modifiers[1]; // EL or TIR
-                    //         uint8 feePercent = attribute.modifiers[2]; // 0-1%
-                    //     }
-                    // }
                 }
                 safeRuneTransfer(msg.sender, pending);
             }
@@ -482,13 +450,33 @@ contract NefChef is Ownable, ERC721Holder {
         updatePool(_pid);
         uint256 pending = user.amount.mul(pool.accRunePerShare).div(1e12).sub(user.rewardDebt);
         if(pending > 0) {
-            // TODO same as deposit
-            // if(vaultWithdrawPercent > 0) {
-            //     uint256 withdrawFeeAmount = pending.mul(vaultWithdrawPercent).div(10000);
-            //     withdrawFeeToken.safeTransferFrom(address(msg.sender), vaultAddress, withdrawFeeAmount);
-                
-            //     emit HarvestFee(vaultAddress, withdrawFeeAmount);
-            // }
+            uint l = userEquippedItems[_msgSender()].length;
+            for (uint i = 0; i < l; i++) {
+                ArcaneItemFactoryV1.ArcaneItem memory item = getItem(userEquippedItems[_msgSender()][i]);
+
+                if (item.itemId == 1 && item.version == 1) {
+                    if (item.mods[1].value > 0) {
+                        address feeToken;
+                        if (item.mods[2].value == 1) {
+                            feeToken = elToken;
+                        } else if (item.mods[2].value == 2) {
+                            feeToken = tirToken;
+                        } else {
+                            feeToken = runeToken;
+                        }
+
+                        uint256 feeAmount = pending.mul(item.mods[1].value).div(100);
+                        IBEP20(feeToken).safeTransferFrom(address(msg.sender), vaultAddress, feeAmount);
+                        
+                        emit HarvestFee(vaultAddress, feeAmount);
+                    }
+
+                    uint256 bonusAmount = pending.mul(item.mods[0].value).div(100);
+                    IBEP20(nefToken).safeTransferFrom(vaultAddress, address(msg.sender), bonusAmount);
+
+                    emit HarvestBonus(address(msg.sender), bonusAmount);
+                }
+            }
             safeRuneTransfer(msg.sender, pending);
         }
         if(_amount > 0) {
