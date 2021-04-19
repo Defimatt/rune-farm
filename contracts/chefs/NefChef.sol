@@ -3342,9 +3342,9 @@ contract ArcaneItemFactoryV1 is Ownable {
         ipfsHash = _ipfsHash;
     }
 
-    function randMod(uint _modulus) internal returns(uint) {
+    function random(uint _modulus) internal returns(uint) {
         randNonce += 1;
-        return uint(keccak256(abi.encodePacked(now, block.difficulty, msg.sender, randNonce))) % _modulus;
+        return uint(keccak256(abi.encodePacked(now, block.difficulty, msg.sender, randNonce))) % (_modulus + 1);
     }
     
     function stringToUint(string memory s) internal view returns (uint256) {
@@ -3409,15 +3409,17 @@ contract ArcaneItemFactoryV1 is Ownable {
         string memory _version = uintToString(recipe.version);
         string memory itemId = uintToString(recipe.itemId);
         string memory mod1 = uintToString(recipe.mods[0].variant);
-        string memory mod2 = recipe.mods[0].minRange == recipe.mods[0].maxRange ? uintToString(recipe.mods[0].minRange) : uintToString(recipe.mods[0].minRange + randMod(recipe.mods[0].maxRange - recipe.mods[0].minRange));
+        string memory mod2 = recipe.mods[0].minRange == recipe.mods[0].maxRange ? uintToString(recipe.mods[0].minRange) : uintToString(recipe.mods[0].minRange + random(recipe.mods[0].maxRange - recipe.mods[0].minRange));
         string memory mod3 = uintToString(recipe.mods[1].variant);
-        string memory mod4 = recipe.mods[1].minRange == recipe.mods[1].maxRange ? uintToString(recipe.mods[1].minRange) : uintToString(recipe.mods[1].minRange + randMod(recipe.mods[1].maxRange - recipe.mods[1].minRange));
+        string memory mod4 = recipe.mods[1].minRange == recipe.mods[1].maxRange ? uintToString(recipe.mods[1].minRange) : uintToString(recipe.mods[1].minRange + random(recipe.mods[1].maxRange - recipe.mods[1].minRange));
         string memory mod5 = uintToString(recipe.mods[2].variant);
-        string memory mod6 = recipe.mods[2].minRange == recipe.mods[2].maxRange ? uintToString(recipe.mods[2].minRange) : uintToString(recipe.mods[2].minRange + randMod(recipe.mods[2].maxRange - recipe.mods[2].minRange));
+        string memory mod6 = recipe.mods[2].minRange == recipe.mods[2].maxRange ? uintToString(recipe.mods[2].minRange) : uintToString(recipe.mods[2].minRange + random(recipe.mods[2].maxRange - recipe.mods[2].minRange));
 
         ///return stringToUint(string("1", abi.encodePacked(pad(_version, 3), pad(itemId, 5), pad(mod1, 3), pad(mod2, 3), pad(mod3, 3), pad(mod4, 3), pad(mod5, 3), pad(mod6, 3))));
 
-        return stringToUint(string(abi.encodePacked("1001000011", bytes(mod2).length > 1 ? "0" : "00", mod2, "100", mod4, "100", mod6)));
+        string memory moreMods = string(abi.encodePacked("1", random(100), "1", random(100), "1", random(100), "1", random(100), "1", random(100)));
+
+        return stringToUint(string(abi.encodePacked("1001000011", bytes(mod2).length > 1 ? "0" : "00", mod2, "100", mod4, "100", mod6, moreMods)));
     }
 
     /**
@@ -4395,19 +4397,22 @@ contract NefChef is Ownable, ERC721Holder {
         string memory tokenIdStr = uintToString(_tokenId);
         uint8 version = uint8(stringToUint(getSlice(1, 4, tokenIdStr)));
 
-        ArcaneItemFactoryV1.ArcaneItemModifier[] memory mods = new ArcaneItemFactoryV1.ArcaneItemModifier[](17);
-        uint l = 70;
-        for (uint i = 9; i+4 < l; i+4) {
-            uint8 _variant = uint8(stringToUint(getSlice(i, i+1, tokenIdStr)));
-            uint16 _value = uint16(stringToUint(getSlice(i+1, i+4, tokenIdStr)));
+        ArcaneItemFactoryV1.ArcaneItemModifier[] memory mods = new ArcaneItemFactoryV1.ArcaneItemModifier[](3);
 
-            ArcaneItemFactoryV1.ArcaneItemModifier memory mod = ArcaneItemFactoryV1.ArcaneItemModifier({
-                variant: _variant,
-                value: _value
-            });
+        mods[0] = ArcaneItemFactoryV1.ArcaneItemModifier({
+            variant: uint8(stringToUint(getSlice(9, 10, tokenIdStr))),
+            value: uint16(stringToUint(getSlice(10, 13, tokenIdStr)))
+        });
 
-            mods[i] = mod;
-        }
+        mods[1] = ArcaneItemFactoryV1.ArcaneItemModifier({
+            variant: uint8(stringToUint(getSlice(13, 14, tokenIdStr))),
+            value: uint16(stringToUint(getSlice(14, 17, tokenIdStr)))
+        });
+
+        mods[2] = ArcaneItemFactoryV1.ArcaneItemModifier({
+            variant: uint8(stringToUint(getSlice(17, 18, tokenIdStr))),
+            value: uint16(stringToUint(getSlice(18, 21, tokenIdStr)))
+        });
 
         ArcaneItemFactoryV1.ArcaneItem memory item = ArcaneItemFactoryV1.ArcaneItem({
             version: version,
@@ -4457,7 +4462,7 @@ contract NefChef is Ownable, ERC721Holder {
         require(_msgSender() == nftToken.ownerOf(_tokenId), "Only NFT owner can register");
 
         ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
-        require(userEquippedItemMap[item.itemId] == 0, "Item already equiped");
+        require(userEquippedItemMap[item.itemId] != 0, "Item already equiped");
 
         // Transfer NFT to this contract
         nftToken.safeTransferFrom(_msgSender(), address(this), _tokenId);
@@ -4472,7 +4477,6 @@ contract NefChef is Ownable, ERC721Holder {
         IERC721 nftToken = IERC721(itemsAddress);
 
         ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
-        require(userEquippedItemMap[item.itemId] != 0, "Item already equiped");
 
         userEquippedItemMap[item.itemId] = 0;
 

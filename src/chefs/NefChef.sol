@@ -260,19 +260,22 @@ contract NefChef is Ownable, ERC721Holder {
         string memory tokenIdStr = uintToString(_tokenId);
         uint8 version = uint8(stringToUint(getSlice(1, 4, tokenIdStr)));
 
-        ArcaneItemFactoryV1.ArcaneItemModifier[] memory mods = new ArcaneItemFactoryV1.ArcaneItemModifier[](17);
-        uint l = 70;
-        for (uint i = 9; i+4 < l; i+4) {
-            uint8 _variant = uint8(stringToUint(getSlice(i, i+1, tokenIdStr)));
-            uint16 _value = uint16(stringToUint(getSlice(i+1, i+4, tokenIdStr)));
+        ArcaneItemFactoryV1.ArcaneItemModifier[] memory mods = new ArcaneItemFactoryV1.ArcaneItemModifier[](3);
 
-            ArcaneItemFactoryV1.ArcaneItemModifier memory mod = ArcaneItemFactoryV1.ArcaneItemModifier({
-                variant: _variant,
-                value: _value
-            });
+        mods[0] = ArcaneItemFactoryV1.ArcaneItemModifier({
+            variant: uint8(stringToUint(getSlice(9, 10, tokenIdStr))),
+            value: uint16(stringToUint(getSlice(10, 13, tokenIdStr)))
+        });
 
-            mods[i] = mod;
-        }
+        mods[1] = ArcaneItemFactoryV1.ArcaneItemModifier({
+            variant: uint8(stringToUint(getSlice(13, 14, tokenIdStr))),
+            value: uint16(stringToUint(getSlice(14, 17, tokenIdStr)))
+        });
+
+        mods[2] = ArcaneItemFactoryV1.ArcaneItemModifier({
+            variant: uint8(stringToUint(getSlice(17, 18, tokenIdStr))),
+            value: uint16(stringToUint(getSlice(18, 21, tokenIdStr)))
+        });
 
         ArcaneItemFactoryV1.ArcaneItem memory item = ArcaneItemFactoryV1.ArcaneItem({
             version: version,
@@ -322,7 +325,7 @@ contract NefChef is Ownable, ERC721Holder {
         require(_msgSender() == nftToken.ownerOf(_tokenId), "Only NFT owner can register");
 
         ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
-        require(userEquippedItemMap[item.itemId] == 0, "Item already equiped");
+        require(userEquippedItemMap[item.itemId] != 0, "Item already equiped");
 
         // Transfer NFT to this contract
         nftToken.safeTransferFrom(_msgSender(), address(this), _tokenId);
@@ -337,7 +340,6 @@ contract NefChef is Ownable, ERC721Holder {
         IERC721 nftToken = IERC721(itemsAddress);
 
         ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
-        require(userEquippedItemMap[item.itemId] != 0, "Item already equiped");
 
         userEquippedItemMap[item.itemId] = 0;
 

@@ -116,9 +116,9 @@ contract ArcaneItemFactoryV1 is Ownable {
         ipfsHash = _ipfsHash;
     }
 
-    function randMod(uint _modulus) internal returns(uint) {
+    function random(uint _modulus) internal returns(uint) {
         randNonce += 1;
-        return uint(keccak256(abi.encodePacked(now, block.difficulty, msg.sender, randNonce))) % _modulus;
+        return uint(keccak256(abi.encodePacked(now, block.difficulty, msg.sender, randNonce))) % (_modulus + 1);
     }
     
     function stringToUint(string memory s) internal view returns (uint256) {
@@ -183,15 +183,17 @@ contract ArcaneItemFactoryV1 is Ownable {
         string memory _version = uintToString(recipe.version);
         string memory itemId = uintToString(recipe.itemId);
         string memory mod1 = uintToString(recipe.mods[0].variant);
-        string memory mod2 = recipe.mods[0].minRange == recipe.mods[0].maxRange ? uintToString(recipe.mods[0].minRange) : uintToString(recipe.mods[0].minRange + randMod(recipe.mods[0].maxRange - recipe.mods[0].minRange));
+        string memory mod2 = recipe.mods[0].minRange == recipe.mods[0].maxRange ? uintToString(recipe.mods[0].minRange) : uintToString(recipe.mods[0].minRange + random(recipe.mods[0].maxRange - recipe.mods[0].minRange));
         string memory mod3 = uintToString(recipe.mods[1].variant);
-        string memory mod4 = recipe.mods[1].minRange == recipe.mods[1].maxRange ? uintToString(recipe.mods[1].minRange) : uintToString(recipe.mods[1].minRange + randMod(recipe.mods[1].maxRange - recipe.mods[1].minRange));
+        string memory mod4 = recipe.mods[1].minRange == recipe.mods[1].maxRange ? uintToString(recipe.mods[1].minRange) : uintToString(recipe.mods[1].minRange + random(recipe.mods[1].maxRange - recipe.mods[1].minRange));
         string memory mod5 = uintToString(recipe.mods[2].variant);
-        string memory mod6 = recipe.mods[2].minRange == recipe.mods[2].maxRange ? uintToString(recipe.mods[2].minRange) : uintToString(recipe.mods[2].minRange + randMod(recipe.mods[2].maxRange - recipe.mods[2].minRange));
+        string memory mod6 = recipe.mods[2].minRange == recipe.mods[2].maxRange ? uintToString(recipe.mods[2].minRange) : uintToString(recipe.mods[2].minRange + random(recipe.mods[2].maxRange - recipe.mods[2].minRange));
 
         ///return stringToUint(string("1", abi.encodePacked(pad(_version, 3), pad(itemId, 5), pad(mod1, 3), pad(mod2, 3), pad(mod3, 3), pad(mod4, 3), pad(mod5, 3), pad(mod6, 3))));
 
-        return stringToUint(string(abi.encodePacked("1001000011", bytes(mod2).length > 1 ? "0" : "00", mod2, "100", mod4, "100", mod6)));
+        string memory moreMods = string(abi.encodePacked("1", random(100), "1", random(100), "1", random(100), "1", random(100), "1", random(100)));
+
+        return stringToUint(string(abi.encodePacked("1001000011", bytes(mod2).length > 1 ? "0" : "00", mod2, "100", mod4, "100", mod6, moreMods)));
     }
 
     /**
