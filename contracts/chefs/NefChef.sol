@@ -1175,6 +1175,245 @@ contract NefRune is BEP20('Nef Test', 'NEFTEST') {
 
 }
 
+// File: src/lib/access/AccessControl.sol
+
+pragma solidity >=0.6.0 <0.8.0;
+
+/**
+ * @dev Contract module that allows children to implement role-based access
+ * control mechanisms.
+ *
+ * Roles are referred to by their `bytes32` identifier. These should be exposed
+ * in the external API and be unique. The best way to achieve this is by
+ * using `public constant` hash digests:
+ *
+ * ```
+ * bytes32 public constant MY_ROLE = keccak256("MY_ROLE");
+ * ```
+ *
+ * Roles can be used to represent a set of permissions. To restrict access to a
+ * function call, use {hasRole}:
+ *
+ * ```
+ * function foo() public {
+ *     require(hasRole(MY_ROLE, msg.sender));
+ *     ...
+ * }
+ * ```
+ *
+ * Roles can be granted and revoked dynamically via the {grantRole} and
+ * {revokeRole} functions. Each role has an associated admin role, and only
+ * accounts that have a role's admin role can call {grantRole} and {revokeRole}.
+ *
+ * By default, the admin role for all roles is `DEFAULT_ADMIN_ROLE`, which means
+ * that only accounts with this role will be able to grant or revoke other
+ * roles. More complex role relationships can be created by using
+ * {_setRoleAdmin}.
+ *
+ * WARNING: The `DEFAULT_ADMIN_ROLE` is also its own admin: it has permission to
+ * grant and revoke this role. Extra precautions should be taken to secure
+ * accounts that have been granted it.
+ */
+abstract contract AccessControl is Context {
+    using EnumerableSet for EnumerableSet.AddressSet;
+    using Address for address;
+
+    struct RoleData {
+        EnumerableSet.AddressSet members;
+        bytes32 adminRole;
+    }
+
+    mapping(bytes32 => RoleData) private _roles;
+
+    bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
+
+    /**
+     * @dev Emitted when `newAdminRole` is set as ``role``'s admin role, replacing `previousAdminRole`
+     *
+     * `DEFAULT_ADMIN_ROLE` is the starting admin for all roles, despite
+     * {RoleAdminChanged} not being emitted signaling this.
+     *
+     * _Available since v3.1._
+     */
+    event RoleAdminChanged(
+        bytes32 indexed role,
+        bytes32 indexed previousAdminRole,
+        bytes32 indexed newAdminRole
+    );
+
+    /**
+     * @dev Emitted when `account` is granted `role`.
+     *
+     * `sender` is the account that originated the contract call, an admin role
+     * bearer except when using {_setupRole}.
+     */
+    event RoleGranted(
+        bytes32 indexed role,
+        address indexed account,
+        address indexed sender
+    );
+
+    /**
+     * @dev Emitted when `account` is revoked `role`.
+     *
+     * `sender` is the account that originated the contract call:
+     *   - if using `revokeRole`, it is the admin role bearer
+     *   - if using `renounceRole`, it is the role bearer (i.e. `account`)
+     */
+    event RoleRevoked(
+        bytes32 indexed role,
+        address indexed account,
+        address indexed sender
+    );
+
+    /**
+     * @dev Returns `true` if `account` has been granted `role`.
+     */
+    function hasRole(bytes32 role, address account) public view returns (bool) {
+        return _roles[role].members.contains(account);
+    }
+
+    /**
+     * @dev Returns the number of accounts that have `role`. Can be used
+     * together with {getRoleMember} to enumerate all bearers of a role.
+     */
+    function getRoleMemberCount(bytes32 role) public view returns (uint256) {
+        return _roles[role].members.length();
+    }
+
+    /**
+     * @dev Returns one of the accounts that have `role`. `index` must be a
+     * value between 0 and {getRoleMemberCount}, non-inclusive.
+     *
+     * Role bearers are not sorted in any particular way, and their ordering may
+     * change at any point.
+     *
+     * WARNING: When using {getRoleMember} and {getRoleMemberCount}, make sure
+     * you perform all queries on the same block. See the following
+     * https://forum.openzeppelin.com/t/iterating-over-elements-on-enumerableset-in-openzeppelin-contracts/2296[forum post]
+     * for more information.
+     */
+    function getRoleMember(bytes32 role, uint256 index)
+        public
+        view
+        returns (address)
+    {
+        return _roles[role].members.at(index);
+    }
+
+    /**
+     * @dev Returns the admin role that controls `role`. See {grantRole} and
+     * {revokeRole}.
+     *
+     * To change a role's admin, use {_setRoleAdmin}.
+     */
+    function getRoleAdmin(bytes32 role) public view returns (bytes32) {
+        return _roles[role].adminRole;
+    }
+
+    /**
+     * @dev Grants `role` to `account`.
+     *
+     * If `account` had not been already granted `role`, emits a {RoleGranted}
+     * event.
+     *
+     * Requirements:
+     *
+     * - the caller must have ``role``'s admin role.
+     */
+    function grantRole(bytes32 role, address account) public virtual {
+        require(
+            hasRole(_roles[role].adminRole, _msgSender()),
+            "AccessControl: sender must be an admin to grant"
+        );
+
+        _grantRole(role, account);
+    }
+
+    /**
+     * @dev Revokes `role` from `account`.
+     *
+     * If `account` had been granted `role`, emits a {RoleRevoked} event.
+     *
+     * Requirements:
+     *
+     * - the caller must have ``role``'s admin role.
+     */
+    function revokeRole(bytes32 role, address account) public virtual {
+        require(
+            hasRole(_roles[role].adminRole, _msgSender()),
+            "AccessControl: sender must be an admin to revoke"
+        );
+
+        _revokeRole(role, account);
+    }
+
+    /**
+     * @dev Revokes `role` from the calling account.
+     *
+     * Roles are often managed via {grantRole} and {revokeRole}: this function's
+     * purpose is to provide a mechanism for accounts to lose their privileges
+     * if they are compromised (such as when a trusted device is misplaced).
+     *
+     * If the calling account had been granted `role`, emits a {RoleRevoked}
+     * event.
+     *
+     * Requirements:
+     *
+     * - the caller must be `account`.
+     */
+    function renounceRole(bytes32 role, address account) public virtual {
+        require(
+            account == _msgSender(),
+            "AccessControl: can only renounce roles for self"
+        );
+
+        _revokeRole(role, account);
+    }
+
+    /**
+     * @dev Grants `role` to `account`.
+     *
+     * If `account` had not been already granted `role`, emits a {RoleGranted}
+     * event. Note that unlike {grantRole}, this function doesn't perform any
+     * checks on the calling account.
+     *
+     * [WARNING]
+     * ====
+     * This function should only be called from the constructor when setting
+     * up the initial roles for the system.
+     *
+     * Using this function in any other way is effectively circumventing the admin
+     * system imposed by {AccessControl}.
+     * ====
+     */
+    function _setupRole(bytes32 role, address account) internal virtual {
+        _grantRole(role, account);
+    }
+
+    /**
+     * @dev Sets `adminRole` as ``role``'s admin role.
+     *
+     * Emits a {RoleAdminChanged} event.
+     */
+    function _setRoleAdmin(bytes32 role, bytes32 adminRole) internal virtual {
+        emit RoleAdminChanged(role, _roles[role].adminRole, adminRole);
+        _roles[role].adminRole = adminRole;
+    }
+
+    function _grantRole(bytes32 role, address account) private {
+        if (_roles[role].members.add(account)) {
+            emit RoleGranted(role, account, _msgSender());
+        }
+    }
+
+    function _revokeRole(bytes32 role, address account) private {
+        if (_roles[role].members.remove(account)) {
+            emit RoleRevoked(role, account, _msgSender());
+        }
+    }
+}
+
 // File: src/lib/token/ERC721/ERC721.sol
 
 pragma solidity >=0.6.0 <0.8.0;
@@ -2810,105 +3049,6 @@ contract ERC721 is
     ) internal virtual {}
 }
 
-// File: src/ArcaneCharacters.sol
-
-pragma solidity 0.6.12;
-
-
-
-
-
-
-contract ArcaneCharacters is ERC721, Ownable {
-    using Counters for Counters.Counter;
-
-    // Map the number of tokens per characterId
-    mapping(uint8 => uint256) public characterCount;
-
-    // Map the number of tokens burnt per characterId
-    mapping(uint8 => uint256) public characterBurnCount;
-
-    // Used for generating the tokenId of new NFT minted
-    Counters.Counter private _tokenIds;
-
-    // Map the characterId for each tokenId
-    mapping(uint256 => uint8) private characterIds;
-
-    // Map the characterName for a tokenId
-    mapping(uint8 => string) private characterNames;
-
-    constructor(string memory _baseURI) public ERC721("Arcane Characters", "AC") {
-        _setBaseURI(_baseURI);
-    }
-
-    /**
-     * @dev Get characterId for a specific tokenId.
-     */
-    function getCharacterId(uint256 _tokenId) external view returns (uint8) {
-        return characterIds[_tokenId];
-    }
-
-    /**
-     * @dev Get the associated characterName for a specific characterId.
-     */
-    function getCharacterName(uint8 _characterId)
-        external
-        view
-        returns (string memory)
-    {
-        return characterNames[_characterId];
-    }
-
-    /**
-     * @dev Get the associated characterName for a unique tokenId.
-     */
-    function getCharacterNameOfTokenId(uint256 _tokenId)
-        external
-        view
-        returns (string memory)
-    {
-        uint8 characterId = characterIds[_tokenId];
-        return characterNames[characterId];
-    }
-
-    /**
-     * @dev Mint NFTs. Only the owner can call it.
-     */
-    function mint(
-        address _to,
-        string calldata _tokenURI,
-        uint8 _characterId
-    ) external onlyOwner returns (uint256) {
-        uint256 newId = _tokenIds.current();
-        _tokenIds.increment();
-        characterIds[newId] = _characterId;
-        characterCount[_characterId] = characterCount[_characterId].add(1);
-        _mint(_to, newId);
-        _setTokenURI(newId, _tokenURI);
-        return newId;
-    }
-
-    /**
-     * @dev Set a unique name for each characterId. It is supposed to be called once.
-     */
-    function setCharacterName(uint8 _characterId, string calldata _name)
-        external
-        onlyOwner
-    {
-        characterNames[_characterId] = _name;
-    }
-
-    /**
-     * @dev Burn a NFT token. Callable by owner only.
-     */
-    function burn(uint256 _tokenId) external onlyOwner {
-        uint8 characterIdBurnt = characterIds[_tokenId];
-        characterCount[characterIdBurnt] = characterCount[characterIdBurnt].sub(1);
-        characterBurnCount[characterIdBurnt] = characterBurnCount[characterIdBurnt].add(1);
-        _burn(_tokenId);
-    }
-}
-
 // File: src/ArcaneItems.sol
 
 pragma solidity 0.6.12;
@@ -3007,245 +3147,6 @@ contract ArcaneItems is ERC721, Ownable {
         itemCount[itemIdBurnt] = itemCount[itemIdBurnt].sub(1);
         itemBurnCount[itemIdBurnt] = itemBurnCount[itemIdBurnt].add(1);
         _burn(_tokenId);
-    }
-}
-
-// File: src/lib/access/AccessControl.sol
-
-pragma solidity >=0.6.0 <0.8.0;
-
-/**
- * @dev Contract module that allows children to implement role-based access
- * control mechanisms.
- *
- * Roles are referred to by their `bytes32` identifier. These should be exposed
- * in the external API and be unique. The best way to achieve this is by
- * using `public constant` hash digests:
- *
- * ```
- * bytes32 public constant MY_ROLE = keccak256("MY_ROLE");
- * ```
- *
- * Roles can be used to represent a set of permissions. To restrict access to a
- * function call, use {hasRole}:
- *
- * ```
- * function foo() public {
- *     require(hasRole(MY_ROLE, msg.sender));
- *     ...
- * }
- * ```
- *
- * Roles can be granted and revoked dynamically via the {grantRole} and
- * {revokeRole} functions. Each role has an associated admin role, and only
- * accounts that have a role's admin role can call {grantRole} and {revokeRole}.
- *
- * By default, the admin role for all roles is `DEFAULT_ADMIN_ROLE`, which means
- * that only accounts with this role will be able to grant or revoke other
- * roles. More complex role relationships can be created by using
- * {_setRoleAdmin}.
- *
- * WARNING: The `DEFAULT_ADMIN_ROLE` is also its own admin: it has permission to
- * grant and revoke this role. Extra precautions should be taken to secure
- * accounts that have been granted it.
- */
-abstract contract AccessControl is Context {
-    using EnumerableSet for EnumerableSet.AddressSet;
-    using Address for address;
-
-    struct RoleData {
-        EnumerableSet.AddressSet members;
-        bytes32 adminRole;
-    }
-
-    mapping(bytes32 => RoleData) private _roles;
-
-    bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
-
-    /**
-     * @dev Emitted when `newAdminRole` is set as ``role``'s admin role, replacing `previousAdminRole`
-     *
-     * `DEFAULT_ADMIN_ROLE` is the starting admin for all roles, despite
-     * {RoleAdminChanged} not being emitted signaling this.
-     *
-     * _Available since v3.1._
-     */
-    event RoleAdminChanged(
-        bytes32 indexed role,
-        bytes32 indexed previousAdminRole,
-        bytes32 indexed newAdminRole
-    );
-
-    /**
-     * @dev Emitted when `account` is granted `role`.
-     *
-     * `sender` is the account that originated the contract call, an admin role
-     * bearer except when using {_setupRole}.
-     */
-    event RoleGranted(
-        bytes32 indexed role,
-        address indexed account,
-        address indexed sender
-    );
-
-    /**
-     * @dev Emitted when `account` is revoked `role`.
-     *
-     * `sender` is the account that originated the contract call:
-     *   - if using `revokeRole`, it is the admin role bearer
-     *   - if using `renounceRole`, it is the role bearer (i.e. `account`)
-     */
-    event RoleRevoked(
-        bytes32 indexed role,
-        address indexed account,
-        address indexed sender
-    );
-
-    /**
-     * @dev Returns `true` if `account` has been granted `role`.
-     */
-    function hasRole(bytes32 role, address account) public view returns (bool) {
-        return _roles[role].members.contains(account);
-    }
-
-    /**
-     * @dev Returns the number of accounts that have `role`. Can be used
-     * together with {getRoleMember} to enumerate all bearers of a role.
-     */
-    function getRoleMemberCount(bytes32 role) public view returns (uint256) {
-        return _roles[role].members.length();
-    }
-
-    /**
-     * @dev Returns one of the accounts that have `role`. `index` must be a
-     * value between 0 and {getRoleMemberCount}, non-inclusive.
-     *
-     * Role bearers are not sorted in any particular way, and their ordering may
-     * change at any point.
-     *
-     * WARNING: When using {getRoleMember} and {getRoleMemberCount}, make sure
-     * you perform all queries on the same block. See the following
-     * https://forum.openzeppelin.com/t/iterating-over-elements-on-enumerableset-in-openzeppelin-contracts/2296[forum post]
-     * for more information.
-     */
-    function getRoleMember(bytes32 role, uint256 index)
-        public
-        view
-        returns (address)
-    {
-        return _roles[role].members.at(index);
-    }
-
-    /**
-     * @dev Returns the admin role that controls `role`. See {grantRole} and
-     * {revokeRole}.
-     *
-     * To change a role's admin, use {_setRoleAdmin}.
-     */
-    function getRoleAdmin(bytes32 role) public view returns (bytes32) {
-        return _roles[role].adminRole;
-    }
-
-    /**
-     * @dev Grants `role` to `account`.
-     *
-     * If `account` had not been already granted `role`, emits a {RoleGranted}
-     * event.
-     *
-     * Requirements:
-     *
-     * - the caller must have ``role``'s admin role.
-     */
-    function grantRole(bytes32 role, address account) public virtual {
-        require(
-            hasRole(_roles[role].adminRole, _msgSender()),
-            "AccessControl: sender must be an admin to grant"
-        );
-
-        _grantRole(role, account);
-    }
-
-    /**
-     * @dev Revokes `role` from `account`.
-     *
-     * If `account` had been granted `role`, emits a {RoleRevoked} event.
-     *
-     * Requirements:
-     *
-     * - the caller must have ``role``'s admin role.
-     */
-    function revokeRole(bytes32 role, address account) public virtual {
-        require(
-            hasRole(_roles[role].adminRole, _msgSender()),
-            "AccessControl: sender must be an admin to revoke"
-        );
-
-        _revokeRole(role, account);
-    }
-
-    /**
-     * @dev Revokes `role` from the calling account.
-     *
-     * Roles are often managed via {grantRole} and {revokeRole}: this function's
-     * purpose is to provide a mechanism for accounts to lose their privileges
-     * if they are compromised (such as when a trusted device is misplaced).
-     *
-     * If the calling account had been granted `role`, emits a {RoleRevoked}
-     * event.
-     *
-     * Requirements:
-     *
-     * - the caller must be `account`.
-     */
-    function renounceRole(bytes32 role, address account) public virtual {
-        require(
-            account == _msgSender(),
-            "AccessControl: can only renounce roles for self"
-        );
-
-        _revokeRole(role, account);
-    }
-
-    /**
-     * @dev Grants `role` to `account`.
-     *
-     * If `account` had not been already granted `role`, emits a {RoleGranted}
-     * event. Note that unlike {grantRole}, this function doesn't perform any
-     * checks on the calling account.
-     *
-     * [WARNING]
-     * ====
-     * This function should only be called from the constructor when setting
-     * up the initial roles for the system.
-     *
-     * Using this function in any other way is effectively circumventing the admin
-     * system imposed by {AccessControl}.
-     * ====
-     */
-    function _setupRole(bytes32 role, address account) internal virtual {
-        _grantRole(role, account);
-    }
-
-    /**
-     * @dev Sets `adminRole` as ``role``'s admin role.
-     *
-     * Emits a {RoleAdminChanged} event.
-     */
-    function _setRoleAdmin(bytes32 role, bytes32 adminRole) internal virtual {
-        emit RoleAdminChanged(role, _roles[role].adminRole, adminRole);
-        _roles[role].adminRole = adminRole;
-    }
-
-    function _grantRole(bytes32 role, address account) private {
-        if (_roles[role].members.add(account)) {
-            emit RoleGranted(role, account, _msgSender());
-        }
-    }
-
-    function _revokeRole(bytes32 role, address account) private {
-        if (_roles[role].members.remove(account)) {
-            emit RoleRevoked(role, account, _msgSender());
-        }
     }
 }
 
@@ -4245,9 +4146,6 @@ pragma solidity 0.6.12;
 
 
 
-
-
-
 // MasterChef is the master of Rune. He can make Rune and he is a fair guy.
 //
 // Note that it's ownable and the owner wields tremendous power. The ownership
@@ -4258,9 +4156,6 @@ pragma solidity 0.6.12;
 contract NefChef is Ownable, ERC721Holder {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
-
-    address public profileAddress;
-    address public itemMintingStationAddress;
 
     // Info of each user.
     struct UserInfo {
@@ -4304,6 +4199,9 @@ contract NefChef is Ownable, ERC721Holder {
     // Void address
     address public voidAddress;
 
+    address public profileAddress;
+    address public itemMintingStationAddress;
+
 
     // Mint percent breakdown
     uint256 public devMintPercent = 0;
@@ -4315,9 +4213,6 @@ contract NefChef is Ownable, ERC721Holder {
     uint256 public vaultDepositPercent = 0;
     uint256 public charityDepositPercent = 0;
 
-    // Withdraw fee
-    uint256 public vaultWithdrawPercent = 0;
-
     address public itemsAddress;
 
     address public runeToken;
@@ -4325,9 +4220,6 @@ contract NefChef is Ownable, ERC721Holder {
     address public eldToken;
     address public tirToken;
     address public nefToken;
-
-    // Map if address has already claimed their Worldstone Shard
-    mapping(address => bool) public hasClaimedShard;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -4460,24 +4352,6 @@ contract NefChef is Ownable, ERC721Holder {
 
         pool.accRunePerShare = pool.accRunePerShare.add(runeReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
-    }
-
-    function claimShard() public {
-        require(!hasClaimedShard[_msgSender()], "Already claimed");
-        
-        hasClaimedShard[_msgSender()] = true;
-
-        uint16 itemId = 10000;
-        string memory tokenURI = 'mtwirsqawjuoloq2gvtyug2tc3jbf5htm2zeo4rsknfiv3fdp46a/item-10000.json';
-
-        uint256 tokenId = 0x16220673BECD24F6889ACE92996B36659B4D8F5E05DABB000000000000000000; //10011000000000000000000000000000000000000000000000000000000000000000000000000;
-
-        ArcaneItemMintingStation(itemMintingStationAddress).mint(
-            _msgSender(),
-            tokenURI,
-            itemId,
-            tokenId
-        );
     }
 
     function stringToUint(string memory s) internal view returns (uint256) {
@@ -4748,13 +4622,6 @@ contract NefChef is Ownable, ERC721Holder {
         runePerBlock = _runePerBlock;
     }
 
-    function setWithdrawFee(uint256 _vaultWithdrawPercent) external {
-        require(msg.sender == devAddress, "dev: wut?");
-        require (_vaultWithdrawPercent <= 1000, "Withdraw percent constraints");
-
-        vaultWithdrawPercent = _vaultWithdrawPercent;
-    }
-
     function setInfo(address _vaultAddress, address _charityAddress, address _devAddress, uint256 _vaultMintPercent, uint256 _charityMintPercent, uint256 _devMintPercent, uint256 _vaultDepositPercent, uint256 _charityDepositPercent, uint256 _devDepositPercent) external
     {
         require(msg.sender == devAddress, "dev: wut?");
@@ -4773,32 +4640,6 @@ contract NefChef is Ownable, ERC721Holder {
         vaultDepositPercent = _vaultDepositPercent;
         charityDepositPercent = _charityDepositPercent;
         devDepositPercent = _devDepositPercent;
-    }
-
-    function rune_proxy_setFeeInfo(address _vaultAddress, address _charityAddress, address _devAddress, address _botAddress, uint256 _vaultFee, uint256 _charityFee, uint256 _devFee, uint256 _botFee) external
-    {
-        require(msg.sender == devAddress, "dev: wut?");
-        rune.setFeeInfo(_vaultAddress, _charityAddress, _devAddress, _botAddress, _vaultFee, _charityFee, _devFee, _botFee);
-    }
-
-    function rune_proxy_addExcluded(address _account) external {
-        require(msg.sender == devAddress, "dev: wut?");
-        rune.addExcluded(_account);
-    }
-
-    function rune_proxy_removeExcluded(address _account) external {
-        require(msg.sender == devAddress, "dev: wut?");
-        rune.removeExcluded(_account);
-    }
-
-    function rune_proxy_addBot(address _account) external {
-        require(msg.sender == devAddress, "dev: wut?");
-        rune.addBot(_account);
-    }
-
-    function rune_proxy_removeBot(address _account) external {
-        require(msg.sender == devAddress, "dev: wut?");
-        rune.removeBot(_account);
     }
 
     function throwRuneInTheVoid() external {

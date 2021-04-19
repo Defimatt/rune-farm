@@ -6,11 +6,8 @@ import "../lib/token/BEP20/SafeBEP20.sol";
 import "../lib/access/Ownable.sol";
 
 import "../runes/Nef.sol";
-import "../ArcaneCharacters.sol";
-import "../ArcaneItems.sol";
 import "../ArcaneItemFactoryV1.sol";
 import "../ArcaneProfile.sol";
-import "../ArcaneItemMintingStation.sol";
 
 
 
@@ -81,9 +78,6 @@ contract NefChef is Ownable, ERC721Holder {
     uint256 public vaultDepositPercent = 0;
     uint256 public charityDepositPercent = 0;
 
-    // Withdraw fee
-    uint256 public vaultWithdrawPercent = 0;
-
     address public itemsAddress;
 
     address public runeToken;
@@ -91,9 +85,6 @@ contract NefChef is Ownable, ERC721Holder {
     address public eldToken;
     address public tirToken;
     address public nefToken;
-
-    // Map if address has already claimed their Worldstone Shard
-    mapping(address => bool) public hasClaimedShard;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -226,24 +217,6 @@ contract NefChef is Ownable, ERC721Holder {
 
         pool.accRunePerShare = pool.accRunePerShare.add(runeReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
-    }
-
-    function claimShard() public {
-        require(!hasClaimedShard[_msgSender()], "Already claimed");
-        
-        hasClaimedShard[_msgSender()] = true;
-
-        uint16 itemId = 10000;
-        string memory tokenURI = 'mtwirsqawjuoloq2gvtyug2tc3jbf5htm2zeo4rsknfiv3fdp46a/item-10000.json';
-
-        uint256 tokenId = 0x16220673BECD24F6889ACE92996B36659B4D8F5E05DABB000000000000000000; //10011000000000000000000000000000000000000000000000000000000000000000000000000;
-
-        ArcaneItemMintingStation(itemMintingStationAddress).mint(
-            _msgSender(),
-            tokenURI,
-            itemId,
-            tokenId
-        );
     }
 
     function stringToUint(string memory s) internal view returns (uint256) {
@@ -514,13 +487,6 @@ contract NefChef is Ownable, ERC721Holder {
         runePerBlock = _runePerBlock;
     }
 
-    function setWithdrawFee(uint256 _vaultWithdrawPercent) external {
-        require(msg.sender == devAddress, "dev: wut?");
-        require (_vaultWithdrawPercent <= 1000, "Withdraw percent constraints");
-
-        vaultWithdrawPercent = _vaultWithdrawPercent;
-    }
-
     function setInfo(address _vaultAddress, address _charityAddress, address _devAddress, uint256 _vaultMintPercent, uint256 _charityMintPercent, uint256 _devMintPercent, uint256 _vaultDepositPercent, uint256 _charityDepositPercent, uint256 _devDepositPercent) external
     {
         require(msg.sender == devAddress, "dev: wut?");
@@ -539,32 +505,6 @@ contract NefChef is Ownable, ERC721Holder {
         vaultDepositPercent = _vaultDepositPercent;
         charityDepositPercent = _charityDepositPercent;
         devDepositPercent = _devDepositPercent;
-    }
-
-    function rune_proxy_setFeeInfo(address _vaultAddress, address _charityAddress, address _devAddress, address _botAddress, uint256 _vaultFee, uint256 _charityFee, uint256 _devFee, uint256 _botFee) external
-    {
-        require(msg.sender == devAddress, "dev: wut?");
-        rune.setFeeInfo(_vaultAddress, _charityAddress, _devAddress, _botAddress, _vaultFee, _charityFee, _devFee, _botFee);
-    }
-
-    function rune_proxy_addExcluded(address _account) external {
-        require(msg.sender == devAddress, "dev: wut?");
-        rune.addExcluded(_account);
-    }
-
-    function rune_proxy_removeExcluded(address _account) external {
-        require(msg.sender == devAddress, "dev: wut?");
-        rune.removeExcluded(_account);
-    }
-
-    function rune_proxy_addBot(address _account) external {
-        require(msg.sender == devAddress, "dev: wut?");
-        rune.addBot(_account);
-    }
-
-    function rune_proxy_removeBot(address _account) external {
-        require(msg.sender == devAddress, "dev: wut?");
-        rune.removeBot(_account);
     }
 
     function throwRuneInTheVoid() external {
