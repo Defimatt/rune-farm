@@ -11,19 +11,19 @@ contract ArcaneItems is ERC721, Ownable {
     using Counters for Counters.Counter;
 
     // Map the number of tokens per itemId
-    mapping(uint8 => uint256) public itemCount;
+    mapping(uint16 => uint256) public itemCount;
 
     // Map the number of tokens burnt per itemId
-    mapping(uint8 => uint256) public itemBurnCount;
+    mapping(uint16 => uint256) public itemBurnCount;
 
     // Used for generating the tokenId of new NFT minted
     // Counters.Counter private _tokenIds;
 
     // Map the itemId for each tokenId
-    mapping(uint256 => uint8) public itemIds;
+    mapping(uint256 => uint16) public itemIds;
 
     // Map the itemName for a tokenId
-    mapping(uint8 => string) public itemNames;
+    mapping(uint16 => string) public itemNames;
 
     constructor(string memory _baseURI) public ERC721("Arcane Items", "AI") {
         _setBaseURI(_baseURI);
@@ -32,14 +32,14 @@ contract ArcaneItems is ERC721, Ownable {
     /**
      * @dev Get itemId for a specific tokenId.
      */
-    function getItemId(uint256 _tokenId) external view returns (uint8) {
+    function getItemId(uint256 _tokenId) external view returns (uint16) {
         return itemIds[_tokenId];
     }
 
     /**
      * @dev Get the associated itemName for a specific itemId.
      */
-    function getItemName(uint8 _itemId)
+    function getItemName(uint16 _itemId)
         external
         view
         returns (string memory)
@@ -55,7 +55,7 @@ contract ArcaneItems is ERC721, Ownable {
         view
         returns (string memory)
     {
-        uint8 itemId = itemIds[_tokenId];
+        uint16 itemId = itemIds[_tokenId];
         return itemNames[itemId];
     }
 
@@ -65,7 +65,7 @@ contract ArcaneItems is ERC721, Ownable {
     function mint(
         address _to,
         string calldata _tokenURI,
-        uint8 _itemId,
+        uint16 _itemId,
         uint256 _tokenId
     ) external onlyOwner returns (uint256) {
         // uint256 newId = _tokenIds.current();
@@ -80,7 +80,7 @@ contract ArcaneItems is ERC721, Ownable {
     /**
      * @dev Set a unique name for each itemId. It is supposed to be called once.
      */
-    function setItemName(uint8 _itemId, string calldata _name)
+    function setItemName(uint16 _itemId, string calldata _name)
         external
         onlyOwner
     {
@@ -91,7 +91,7 @@ contract ArcaneItems is ERC721, Ownable {
      * @dev Burn a NFT token. Callable by owner only.
      */
     function burn(uint256 _tokenId) external onlyOwner {
-        uint8 itemIdBurnt = itemIds[_tokenId];
+        uint16 itemIdBurnt = itemIds[_tokenId];
         itemCount[itemIdBurnt] = itemCount[itemIdBurnt].sub(1);
         itemBurnCount[itemIdBurnt] = itemBurnCount[itemIdBurnt].add(1);
         _burn(_tokenId);

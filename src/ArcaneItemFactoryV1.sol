@@ -1,4 +1,5 @@
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 import "./lib/math/SafeMath.sol";
 import "./lib/token/BEP20/IBEP20.sol";
@@ -22,22 +23,16 @@ contract ArcaneItemFactoryV1 is Ownable {
     // Number of RUNEs a user needs to pay to acquire a token
     uint256 public tokenPrice;
 
-    // Map if address has already claimed a NFT
-    mapping(address => bool) public hasClaimed;
-
     // IPFS hash for new json
     string private ipfsHash;
 
-    // number of total series (i.e. different visuals)
-    uint8 private constant numberItemIds = 8;
-
-    // number of previous series (i.e. different visuals)
-    uint8 private constant previousNumberItemIds = 1;
-
     // Map the token number to URI
-    mapping(uint8 => string) private itemIdURIs;
+    mapping(uint16 => string) private itemIdURIs;
 
-    mapping(address => mapping(address => uint256)) public recipes;
+    mapping(address => mapping(address => ArcaneRecipe)) public recipes;
+
+    // Is minting enabled
+    bool private mintingEnabled;
 
     uint8 public constant version = 1;
 
@@ -45,17 +40,17 @@ contract ArcaneItemFactoryV1 is Ownable {
     event ItemMint(
         address indexed to,
         uint256 indexed tokenId,
-        uint8 indexed itemId
+        uint16 indexed itemId
     );
 
     struct ArcaneRecipe {
         uint16 version;
         uint16 itemId;
-        ArcaneRecipeModifier[] modifiers;
+        ArcaneRecipeModifier[] mods;
     }
 
     struct ArcaneRecipeModifier {
-        ArcaneItemAttribute attribute;
+        ArcaneItemModifier mod;
         uint16 minRange;
         uint16 maxRange;
         uint16 difficulty;
@@ -64,12 +59,12 @@ contract ArcaneItemFactoryV1 is Ownable {
     struct ArcaneItem {
         uint16 version;
         uint16 itemId;
-        ArcaneItemAttribute[] attributes;
+        ArcaneItemModifier[] mods;
     }
 
-    struct ArcaneItemAttribute {
-        uint16 attributeId;
-        uint8[] modifiers;
+    struct ArcaneItemModifier {
+        uint8 variant;
+        uint16 value;
     }
 
     constructor(
@@ -86,12 +81,26 @@ contract ArcaneItemFactoryV1 is Ownable {
         startBlockNumber = _startBlockNumber;
     }
 
+    function addRecipe(address _item1, address _item2, uint16 _version, uint16 _itemId, ArcaneRecipeModifier[] memory _mods) external onlyOwner {
+        ArcaneRecipeModifier[] memory _mods2 = new ArcaneRecipeModifier[](_mods.length);
 
-    function addRecipe(address _item1, address _item2, uint _version, uint _itemId) {
+        for(uint i = 0; i < _mods.length; i++) {
+            ArcaneRecipeModifier memory mod = _mods[i];
+            _mods2[i] = ArcaneRecipeModifier({
+                mod: ArcaneItemModifier({
+                    variant: mod.mod.variant,
+                    value: mod.mod.value
+                }),
+                minRange: mod.minRange,
+                maxRange: mod.maxRange,
+                difficulty: mod.difficulty
+            });
+        }
+
         recipes[_item1][_item2] = ArcaneRecipe({
             version: _version,
             itemId: _itemId,
-            modifiers: _modifiers
+            mods: _mods
         });
     }
 
@@ -105,30 +114,31 @@ contract ArcaneItemFactoryV1 is Ownable {
         ipfsHash = _ipfsHash;
     }
 
-    function randMod(uint _modulus) internal view returns(uint) {
-        randNonce += uint(msg.sender[0]);
+    function randMod(uint _modulus) internal returns(uint) {
+        bytes memory addressBytes = abi.encodePacked(address(msg.sender));
+        randNonce += uint(uint8(addressBytes[0]));
         return uint(keccak256(abi.encodePacked(now, msg.sender, randNonce))) % _modulus;
     }
     
-    function stringToUint(string s) internal view returns (uint256) {
+    function stringToUint(string memory s) internal view returns (uint256) {
         bytes memory b = bytes(s);
         uint256 result = 0;
         for (uint i = 0; i < b.length; i++) { // c = b[i] was not needed
-            if (b[i] >= 48 && b[i] <= 57) {
-                result = result * 10 + (uint(b[i]) - 48); // bytes and int are not compatible with the operator -.
+            if (uint8(b[i]) >= 48 && uint8(b[i]) <= 57) {
+                result = result * 10 + (uint8(b[i]) - 48); // bytes and int are not compatible with the operator -.
             }
         }
         return result; // this was missing
     }
 
-    function uintToString(uint256 v) internal view returns (string) {
+    function uintToString(uint256 v) internal view returns (string memory) {
         uint256 maxlength = 100;
         bytes memory reversed = new bytes(maxlength);
         uint i = 0;
         while (v != 0) {
             uint remainder = v % 10;
             v = v / 10;
-            reversed[i++] = byte(48 + remainder);
+            reversed[i++] = byte(48 + uint8(remainder));
         }
         bytes memory s = new bytes(i); // i + 1 is inefficient
         for (uint j = 0; j < i; j++) {
@@ -138,7 +148,7 @@ contract ArcaneItemFactoryV1 is Ownable {
         return str;
     }
 
-    function getSlice(uint256 begin, uint256 end, string text) public pure returns (string) {
+    function getSlice(uint256 begin, uint256 end, string memory text) public pure returns (string memory) {
         bytes memory a = new bytes(end-begin+1);
         for(uint i=0;i<=end-begin;i++){
             a[i] = bytes(text)[i+begin-1];
@@ -146,44 +156,19 @@ contract ArcaneItemFactoryV1 is Ownable {
         return string(a);    
     }
 
-    function concat(string a, string b, string c, string d, string e) internal pure returns (string) {
+    function concat(string memory a, string memory b, string memory c, string memory d, string memory e) internal pure returns (string memory) {
         return string(abi.encodePacked(a, b, c, d, e));
     }
 
-    function getTokenIdFromRecipe(ArcaneRecipe recipe) public view returns (uint256) {
-        string tokenIdStr = uintToString(_tokenId);
-        uint8 version = uint8(stringToUint(getSlice(0, 1, tokenIdStr)));
+    function getTokenIdFromRecipe(ArcaneRecipe memory recipe) public returns (uint256) {
+        string memory _version = uintToString(recipe.version);
+        string memory itemId = uintToString(recipe.itemId);
+        string memory mod1 = uintToString(recipe.mods[0].mod.variant);
+        string memory mod2 = uintToString(recipe.mods[0].minRange + randMod(recipe.mods[0].maxRange));
+        string memory mod3 = uintToString(recipe.mods[0].mod.variant);
+        string memory mod4 = uintToString(recipe.mods[1].minRange + randMod(recipe.mods[1].maxRange));
 
-        if (version == 1) {
-            ArcaneFactoryV1.ArcaneItem memory item = ArcaneFactoryV1.ArcaneItem({
-                itemId: uint16(stringToUint(getSlice(i, i+5, tokenIdStr)))
-            });
-
-            ArcaneFactoryV1.ArcaneItemAttribute memory currentAttribute;
-
-            uint l = tokenIdStr.length;
-            for (uint i = 6; i < l; i+5) {
-                uint16 decoded = uint16(stringToUint(getSlice(i, i+5, tokenIdStr)));
-
-                // It's an attribute else it's a modifier
-                if (decoded > 50000) {
-                    currentAttribute = ArcaneFactoryV1.ArcaneItemAttribute({
-                        attributeId: decoded
-                    });
-                } else {
-                    currentAttribute.modifiers.push(decoded);
-                }
-            }
-        }
-
-        string version = uintToString(recipe.version);
-        string itemId = uintToString(recipe.itemId);
-        string modifier1 = uintToString(recipe.modifiers[0].attribute.attributeId);
-        string modifier2 = uintToString(recipe.modifiers[0].minRange + randMod(recipe.modifiers[0].maxRange));
-        string modifier3 = uintToString(recipe.modifiers[1].attribute.attributeId);
-        string modifier4 = uintToString(recipe.modifiers[1].minRange + randMod(recipe.modifiers[1].maxRange));
-
-        return uint256(stringToUint(string(abi.encodePacked(version, itemId, modifier1, modifier2, modifier3, modifier4))));
+        return uint256(stringToUint(string(abi.encodePacked(_version, itemId, mod1, mod2, mod3, mod4))));
     }
 
     /**
@@ -191,16 +176,14 @@ contract ArcaneItemFactoryV1 is Ownable {
      * Users can specify what itemId they want to mint. Users can claim once.
      */
     function transmute(address _item1, address _item2) external {
+        require(mintingEnabled == true, "Minting disabled");
+        
         address senderAddress = _msgSender();
 
         ArcaneRecipe memory recipe = recipes[_item1][_item2];
 
         // Check block time is not too late
         require(block.number > startBlockNumber, "too early");
-        // // Check that the _itemId is within boundary:
-        // require(_itemId >= previousNumberItemIds, "itemId too low");
-        // // Check that the _itemId is within boundary:
-        // require(_itemId < numberItemIds, "itemId too high");
 
         // Send RUNE tokens to this contract
         if (tokenPrice > 0) {
@@ -209,8 +192,9 @@ contract ArcaneItemFactoryV1 is Ownable {
 
         string memory tokenURI = itemIdURIs[recipe.itemId];
 
-        // TODO random modifiers
+        // TODO random mods
 
+        uint16 _itemId = recipe.itemId;
         uint256 _tokenId = getTokenIdFromRecipe(recipe);
 
         uint256 tokenId =
@@ -238,21 +222,10 @@ contract ArcaneItemFactoryV1 is Ownable {
      * Only the owner can set it.
      */
     function setItemJson(
-        string calldata _itemId1Json,
-        string calldata _itemId2Json,
-        string calldata _itemId3Json,
-        string calldata _itemId4Json,
-        string calldata _itemId5Json,
-        string calldata _itemId6Json,
-        string calldata _itemId7Json
+        uint16 _itemId,
+        string calldata _itemIdJson
     ) external onlyOwner {
-        itemIdURIs[1] = string(abi.encodePacked(ipfsHash, _itemId1Json));
-        itemIdURIs[2] = string(abi.encodePacked(ipfsHash, _itemId2Json));
-        itemIdURIs[3] = string(abi.encodePacked(ipfsHash, _itemId3Json));
-        itemIdURIs[4] = string(abi.encodePacked(ipfsHash, _itemId4Json));
-        itemIdURIs[5] = string(abi.encodePacked(ipfsHash, _itemId5Json));
-        itemIdURIs[6] = string(abi.encodePacked(ipfsHash, _itemId6Json));
-        itemIdURIs[7] = string(abi.encodePacked(ipfsHash, _itemId7Json));
+        itemIdURIs[_itemId] = string(abi.encodePacked(ipfsHash, _itemIdJson));
     }
 
     /**
@@ -275,7 +248,7 @@ contract ArcaneItemFactoryV1 is Ownable {
         tokenPrice = _newTokenPrice;
     }
 
-    function canMint(address userAddress) external view returns (bool) {
-        return true;
+    function setMintingEnabled(bool _mintingEnabled) external onlyOwner {
+        mintingEnabled = _mintingEnabled;
     }
 }

@@ -899,6 +899,53 @@ abstract contract AccessControl is Context {
 pragma solidity >=0.6.0 <0.8.0;
 
 /**
+ * @title ERC721 token receiver interface
+ * @dev Interface for any contract that wants to support safeTransfers
+ * from ERC721 asset contracts.
+ */
+interface IERC721Receiver {
+    /**
+     * @dev Whenever an {IERC721} `tokenId` token is transferred to this contract via {IERC721-safeTransferFrom}
+     * by `operator` from `from`, this function is called.
+     *
+     * It must return its Solidity selector to confirm the token transfer.
+     * If any other value is returned or the interface is not implemented by the recipient, the transfer will be reverted.
+     *
+     * The selector can be obtained in Solidity with `IERC721.onERC721Received.selector`.
+     */
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4);
+}
+
+
+/**
+ * @dev Implementation of the {IERC721Receiver} interface.
+ *
+ * Accepts all token transfers.
+ * Make sure the contract is able to use its token with {IERC721-safeTransferFrom}, {IERC721-approve} or {IERC721-setApprovalForAll}.
+ */
+contract ERC721Holder is IERC721Receiver {
+    /**
+     * @dev See {IERC721Receiver-onERC721Received}.
+     *
+     * Always returns `IERC721Receiver.onERC721Received.selector`.
+     */
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes memory
+    ) public virtual override returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+}
+
+
+/**
  * @title Counters
  * @author Matt Condon (@shrugs)
  * @dev Provides counters that can only be incremented or decremented by one. This can be used e.g. to track the number
@@ -2516,19 +2563,19 @@ contract ArcaneItems is ERC721, Ownable {
     using Counters for Counters.Counter;
 
     // Map the number of tokens per itemId
-    mapping(uint8 => uint256) public itemCount;
+    mapping(uint16 => uint256) public itemCount;
 
     // Map the number of tokens burnt per itemId
-    mapping(uint8 => uint256) public itemBurnCount;
+    mapping(uint16 => uint256) public itemBurnCount;
 
     // Used for generating the tokenId of new NFT minted
     // Counters.Counter private _tokenIds;
 
     // Map the itemId for each tokenId
-    mapping(uint256 => uint8) public itemIds;
+    mapping(uint256 => uint16) public itemIds;
 
     // Map the itemName for a tokenId
-    mapping(uint8 => string) public itemNames;
+    mapping(uint16 => string) public itemNames;
 
     constructor(string memory _baseURI) public ERC721("Arcane Items", "AI") {
         _setBaseURI(_baseURI);
@@ -2537,14 +2584,14 @@ contract ArcaneItems is ERC721, Ownable {
     /**
      * @dev Get itemId for a specific tokenId.
      */
-    function getItemId(uint256 _tokenId) external view returns (uint8) {
+    function getItemId(uint256 _tokenId) external view returns (uint16) {
         return itemIds[_tokenId];
     }
 
     /**
      * @dev Get the associated itemName for a specific itemId.
      */
-    function getItemName(uint8 _itemId)
+    function getItemName(uint16 _itemId)
         external
         view
         returns (string memory)
@@ -2560,7 +2607,7 @@ contract ArcaneItems is ERC721, Ownable {
         view
         returns (string memory)
     {
-        uint8 itemId = itemIds[_tokenId];
+        uint16 itemId = itemIds[_tokenId];
         return itemNames[itemId];
     }
 
@@ -2570,7 +2617,7 @@ contract ArcaneItems is ERC721, Ownable {
     function mint(
         address _to,
         string calldata _tokenURI,
-        uint8 _itemId,
+        uint16 _itemId,
         uint256 _tokenId
     ) external onlyOwner returns (uint256) {
         // uint256 newId = _tokenIds.current();
@@ -2585,7 +2632,7 @@ contract ArcaneItems is ERC721, Ownable {
     /**
      * @dev Set a unique name for each itemId. It is supposed to be called once.
      */
-    function setItemName(uint8 _itemId, string calldata _name)
+    function setItemName(uint16 _itemId, string calldata _name)
         external
         onlyOwner
     {
@@ -2596,7 +2643,7 @@ contract ArcaneItems is ERC721, Ownable {
      * @dev Burn a NFT token. Callable by owner only.
      */
     function burn(uint256 _tokenId) external onlyOwner {
-        uint8 itemIdBurnt = itemIds[_tokenId];
+        uint16 itemIdBurnt = itemIds[_tokenId];
         itemCount[itemIdBurnt] = itemCount[itemIdBurnt].sub(1);
         itemBurnCount[itemIdBurnt] = itemBurnCount[itemIdBurnt].add(1);
         _burn(_tokenId);
@@ -2642,28 +2689,29 @@ contract ArcaneItemMintingStation is AccessControl {
 
     /**
      * @dev Mint NFTs from the ArcaneItems contract.
-     * Users can specify what characterId they want to mint. Users can claim once.
+     * Users can specify what itemId they want to mint. Users can claim once.
      * There is a limit on how many are distributed. It requires RUNE balance to be > 0.
      */
     function mint(
         address _tokenReceiver,
         string calldata _tokenURI,
-        uint8 _characterId
+        uint16 _itemId,
+        uint256 _tokenId
     ) external onlyMinter returns (uint256) {
         uint256 tokenId =
-            arcaneItems.mint(_tokenReceiver, _tokenURI, _characterId);
+            arcaneItems.mint(_tokenReceiver, _tokenURI, _itemId, _tokenId);
         return tokenId;
     }
 
     /**
-     * @dev Set up names for characters.
+     * @dev Set up names for items.
      * Only the main admins can set it.
      */
-    function setItemName(uint8 _characterId, string calldata _characterName)
+    function setItemName(uint8 _itemId, string calldata _itemName)
         external
         onlyOwner
     {
-        arcaneItems.setItemName(_characterId, _characterName);
+        arcaneItems.setItemName(_itemId, _itemName);
     }
 
     /**

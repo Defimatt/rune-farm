@@ -979,8 +979,8 @@ library SafeBEP20 {
 pragma solidity 0.6.12;
 
 
-// Tir Rune
-contract TirRune is BEP20('Tir', 'TIR') {
+// Nef Rune
+contract NefRune is BEP20('Nef', 'NEF') {
     uint256 public vaultFee = 0;
     uint256 public charityFee = 0;
     uint256 public devFee = 0;

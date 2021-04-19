@@ -899,6 +899,53 @@ abstract contract AccessControl is Context {
 pragma solidity >=0.6.0 <0.8.0;
 
 /**
+ * @title ERC721 token receiver interface
+ * @dev Interface for any contract that wants to support safeTransfers
+ * from ERC721 asset contracts.
+ */
+interface IERC721Receiver {
+    /**
+     * @dev Whenever an {IERC721} `tokenId` token is transferred to this contract via {IERC721-safeTransferFrom}
+     * by `operator` from `from`, this function is called.
+     *
+     * It must return its Solidity selector to confirm the token transfer.
+     * If any other value is returned or the interface is not implemented by the recipient, the transfer will be reverted.
+     *
+     * The selector can be obtained in Solidity with `IERC721.onERC721Received.selector`.
+     */
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4);
+}
+
+
+/**
+ * @dev Implementation of the {IERC721Receiver} interface.
+ *
+ * Accepts all token transfers.
+ * Make sure the contract is able to use its token with {IERC721-safeTransferFrom}, {IERC721-approve} or {IERC721-setApprovalForAll}.
+ */
+contract ERC721Holder is IERC721Receiver {
+    /**
+     * @dev See {IERC721Receiver-onERC721Received}.
+     *
+     * Always returns `IERC721Receiver.onERC721Received.selector`.
+     */
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes memory
+    ) public virtual override returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+}
+
+
+/**
  * @title Counters
  * @author Matt Condon (@shrugs)
  * @dev Provides counters that can only be incremented or decremented by one. This can be used e.g. to track the number
@@ -2516,19 +2563,19 @@ contract ArcaneItems is ERC721, Ownable {
     using Counters for Counters.Counter;
 
     // Map the number of tokens per itemId
-    mapping(uint8 => uint256) public itemCount;
+    mapping(uint16 => uint256) public itemCount;
 
     // Map the number of tokens burnt per itemId
-    mapping(uint8 => uint256) public itemBurnCount;
+    mapping(uint16 => uint256) public itemBurnCount;
 
     // Used for generating the tokenId of new NFT minted
     // Counters.Counter private _tokenIds;
 
     // Map the itemId for each tokenId
-    mapping(uint256 => uint8) public itemIds;
+    mapping(uint256 => uint16) public itemIds;
 
     // Map the itemName for a tokenId
-    mapping(uint8 => string) public itemNames;
+    mapping(uint16 => string) public itemNames;
 
     constructor(string memory _baseURI) public ERC721("Arcane Items", "AI") {
         _setBaseURI(_baseURI);
@@ -2537,14 +2584,14 @@ contract ArcaneItems is ERC721, Ownable {
     /**
      * @dev Get itemId for a specific tokenId.
      */
-    function getItemId(uint256 _tokenId) external view returns (uint8) {
+    function getItemId(uint256 _tokenId) external view returns (uint16) {
         return itemIds[_tokenId];
     }
 
     /**
      * @dev Get the associated itemName for a specific itemId.
      */
-    function getItemName(uint8 _itemId)
+    function getItemName(uint16 _itemId)
         external
         view
         returns (string memory)
@@ -2560,7 +2607,7 @@ contract ArcaneItems is ERC721, Ownable {
         view
         returns (string memory)
     {
-        uint8 itemId = itemIds[_tokenId];
+        uint16 itemId = itemIds[_tokenId];
         return itemNames[itemId];
     }
 
@@ -2570,7 +2617,7 @@ contract ArcaneItems is ERC721, Ownable {
     function mint(
         address _to,
         string calldata _tokenURI,
-        uint8 _itemId,
+        uint16 _itemId,
         uint256 _tokenId
     ) external onlyOwner returns (uint256) {
         // uint256 newId = _tokenIds.current();
@@ -2585,7 +2632,7 @@ contract ArcaneItems is ERC721, Ownable {
     /**
      * @dev Set a unique name for each itemId. It is supposed to be called once.
      */
-    function setItemName(uint8 _itemId, string calldata _name)
+    function setItemName(uint16 _itemId, string calldata _name)
         external
         onlyOwner
     {
@@ -2596,7 +2643,7 @@ contract ArcaneItems is ERC721, Ownable {
      * @dev Burn a NFT token. Callable by owner only.
      */
     function burn(uint256 _tokenId) external onlyOwner {
-        uint8 itemIdBurnt = itemIds[_tokenId];
+        uint16 itemIdBurnt = itemIds[_tokenId];
         itemCount[itemIdBurnt] = itemCount[itemIdBurnt].sub(1);
         itemBurnCount[itemIdBurnt] = itemBurnCount[itemIdBurnt].add(1);
         _burn(_tokenId);
@@ -2642,28 +2689,29 @@ contract ArcaneItemMintingStation is AccessControl {
 
     /**
      * @dev Mint NFTs from the ArcaneItems contract.
-     * Users can specify what characterId they want to mint. Users can claim once.
+     * Users can specify what itemId they want to mint. Users can claim once.
      * There is a limit on how many are distributed. It requires RUNE balance to be > 0.
      */
     function mint(
         address _tokenReceiver,
         string calldata _tokenURI,
-        uint8 _characterId
+        uint16 _itemId,
+        uint256 _tokenId
     ) external onlyMinter returns (uint256) {
         uint256 tokenId =
-            arcaneItems.mint(_tokenReceiver, _tokenURI, _characterId);
+            arcaneItems.mint(_tokenReceiver, _tokenURI, _itemId, _tokenId);
         return tokenId;
     }
 
     /**
-     * @dev Set up names for characters.
+     * @dev Set up names for items.
      * Only the main admins can set it.
      */
-    function setItemName(uint8 _characterId, string calldata _characterName)
+    function setItemName(uint8 _itemId, string calldata _itemName)
         external
         onlyOwner
     {
-        arcaneItems.setItemName(_characterId, _characterName);
+        arcaneItems.setItemName(_itemId, _itemName);
     }
 
     /**
@@ -2679,6 +2727,7 @@ contract ArcaneItemMintingStation is AccessControl {
 // File: src/ArcaneItemFactoryV1.sol
 
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 
 
@@ -2700,22 +2749,16 @@ contract ArcaneItemFactoryV1 is Ownable {
     // Number of RUNEs a user needs to pay to acquire a token
     uint256 public tokenPrice;
 
-    // Map if address has already claimed a NFT
-    mapping(address => bool) public hasClaimed;
-
     // IPFS hash for new json
     string private ipfsHash;
 
-    // number of total series (i.e. different visuals)
-    uint8 private constant numberItemIds = 8;
-
-    // number of previous series (i.e. different visuals)
-    uint8 private constant previousNumberItemIds = 1;
-
     // Map the token number to URI
-    mapping(uint8 => string) private itemIdURIs;
+    mapping(uint16 => string) private itemIdURIs;
 
-    mapping(address => mapping(address => uint256)) public recipes;
+    mapping(address => mapping(address => ArcaneRecipe)) public recipes;
+
+    // Is minting enabled
+    bool private mintingEnabled;
 
     uint8 public constant version = 1;
 
@@ -2723,17 +2766,17 @@ contract ArcaneItemFactoryV1 is Ownable {
     event ItemMint(
         address indexed to,
         uint256 indexed tokenId,
-        uint8 indexed itemId
+        uint16 indexed itemId
     );
 
     struct ArcaneRecipe {
         uint16 version;
         uint16 itemId;
-        ArcaneRecipeModifier[] modifiers;
+        ArcaneRecipeModifier[] mods;
     }
 
     struct ArcaneRecipeModifier {
-        ArcaneItemAttribute attribute;
+        ArcaneItemModifier mod;
         uint16 minRange;
         uint16 maxRange;
         uint16 difficulty;
@@ -2742,12 +2785,12 @@ contract ArcaneItemFactoryV1 is Ownable {
     struct ArcaneItem {
         uint16 version;
         uint16 itemId;
-        ArcaneItemAttribute[] attributes;
+        ArcaneItemModifier[] mods;
     }
 
-    struct ArcaneItemAttribute {
-        uint16 attributeId;
-        uint8[] modifiers;
+    struct ArcaneItemModifier {
+        uint8 variant;
+        uint16 value;
     }
 
     constructor(
@@ -2764,14 +2807,30 @@ contract ArcaneItemFactoryV1 is Ownable {
         startBlockNumber = _startBlockNumber;
     }
 
+    function addRecipe(address _item1, address _item2, uint16 _version, uint16 _itemId, ArcaneRecipeModifier[] memory _mods) external onlyOwner {
+        ArcaneRecipeModifier[] memory _mods2 = new ArcaneRecipeModifier[](_mods.length);
 
-    function addRecipe(address _item1, address _item2, uint _version, uint _itemId) {
+        for(uint i = 0; i < _mods.length; i++) {
+            ArcaneRecipeModifier memory mod = _mods[i];
+            _mods2[i] = ArcaneRecipeModifier({
+                mod: ArcaneItemModifier({
+                    variant: mod.mod.variant,
+                    value: mod.mod.value
+                }),
+                minRange: mod.minRange,
+                maxRange: mod.maxRange,
+                difficulty: mod.difficulty
+            });
+        }
+
         recipes[_item1][_item2] = ArcaneRecipe({
             version: _version,
             itemId: _itemId,
-            modifiers: _modifiers
+            mods: _mods
         });
     }
+
+    uint public randNonce;
 
     /**
      * @dev Allow to change the IPFS hash
@@ -2781,32 +2840,95 @@ contract ArcaneItemFactoryV1 is Ownable {
         ipfsHash = _ipfsHash;
     }
 
+    function randMod(uint _modulus) internal returns(uint) {
+        bytes memory addressBytes = abi.encodePacked(address(msg.sender));
+        randNonce += uint(uint8(addressBytes[0]));
+        return uint(keccak256(abi.encodePacked(now, msg.sender, randNonce))) % _modulus;
+    }
+    
+    function stringToUint(string memory s) internal view returns (uint256) {
+        bytes memory b = bytes(s);
+        uint256 result = 0;
+        for (uint i = 0; i < b.length; i++) { // c = b[i] was not needed
+            if (uint8(b[i]) >= 48 && uint8(b[i]) <= 57) {
+                result = result * 10 + (uint8(b[i]) - 48); // bytes and int are not compatible with the operator -.
+            }
+        }
+        return result; // this was missing
+    }
+
+    function uintToString(uint256 v) internal view returns (string memory) {
+        uint256 maxlength = 100;
+        bytes memory reversed = new bytes(maxlength);
+        uint i = 0;
+        while (v != 0) {
+            uint remainder = v % 10;
+            v = v / 10;
+            reversed[i++] = byte(48 + uint8(remainder));
+        }
+        bytes memory s = new bytes(i); // i + 1 is inefficient
+        for (uint j = 0; j < i; j++) {
+            s[j] = reversed[i - j - 1]; // to avoid the off-by-one error
+        }
+        string memory str = string(s);  // memory isn't implicitly convertible to storage
+        return str;
+    }
+
+    function getSlice(uint256 begin, uint256 end, string memory text) public pure returns (string memory) {
+        bytes memory a = new bytes(end-begin+1);
+        for(uint i=0;i<=end-begin;i++){
+            a[i] = bytes(text)[i+begin-1];
+        }
+        return string(a);    
+    }
+
+    function concat(string memory a, string memory b, string memory c, string memory d, string memory e) internal pure returns (string memory) {
+        return string(abi.encodePacked(a, b, c, d, e));
+    }
+
+    function getTokenIdFromRecipe(ArcaneRecipe memory recipe) public returns (uint256) {
+        string memory _version = uintToString(recipe.version);
+        string memory itemId = uintToString(recipe.itemId);
+        string memory mod1 = uintToString(recipe.mods[0].mod.variant);
+        string memory mod2 = uintToString(recipe.mods[0].minRange + randMod(recipe.mods[0].maxRange));
+        string memory mod3 = uintToString(recipe.mods[0].mod.variant);
+        string memory mod4 = uintToString(recipe.mods[1].minRange + randMod(recipe.mods[1].maxRange));
+
+        return uint256(stringToUint(string(abi.encodePacked(_version, itemId, mod1, mod2, mod3, mod4))));
+    }
+
     /**
      * @dev Mint NFTs from the ItemMintingStation contract.
      * Users can specify what itemId they want to mint. Users can claim once.
      */
     function transmute(address _item1, address _item2) external {
+        require(mintingEnabled == true, "Minting disabled");
+        
         address senderAddress = _msgSender();
 
         ArcaneRecipe memory recipe = recipes[_item1][_item2];
 
         // Check block time is not too late
         require(block.number > startBlockNumber, "too early");
-        // // Check that the _itemId is within boundary:
-        // require(_itemId >= previousNumberItemIds, "itemId too low");
-        // // Check that the _itemId is within boundary:
-        // require(_itemId < numberItemIds, "itemId too high");
 
         // Send RUNE tokens to this contract
-        runeToken.safeTransferFrom(senderAddress, address(this), tokenPrice);
+        if (tokenPrice > 0) {
+            runeToken.safeTransferFrom(senderAddress, address(this), tokenPrice);
+        }
 
-        string memory tokenURI = itemIdURIs[_itemId];
+        string memory tokenURI = itemIdURIs[recipe.itemId];
+
+        // TODO random mods
+
+        uint16 _itemId = recipe.itemId;
+        uint256 _tokenId = getTokenIdFromRecipe(recipe);
 
         uint256 tokenId =
-            itemMintingStation.mintCollectible(
+            itemMintingStation.mint(
                 senderAddress,
                 tokenURI,
-                _itemId
+                _itemId,
+                _tokenId
             );
 
         emit ItemMint(senderAddress, tokenId, _itemId);
@@ -2826,21 +2948,10 @@ contract ArcaneItemFactoryV1 is Ownable {
      * Only the owner can set it.
      */
     function setItemJson(
-        string calldata _itemId1Json,
-        string calldata _itemId2Json,
-        string calldata _itemId3Json,
-        string calldata _itemId4Json,
-        string calldata _itemId5Json,
-        string calldata _itemId6Json,
-        string calldata _itemId7Json
+        uint16 _itemId,
+        string calldata _itemIdJson
     ) external onlyOwner {
-        itemIdURIs[1] = string(abi.encodePacked(ipfsHash, _itemId1Json));
-        itemIdURIs[2] = string(abi.encodePacked(ipfsHash, _itemId2Json));
-        itemIdURIs[3] = string(abi.encodePacked(ipfsHash, _itemId3Json));
-        itemIdURIs[4] = string(abi.encodePacked(ipfsHash, _itemId4Json));
-        itemIdURIs[5] = string(abi.encodePacked(ipfsHash, _itemId5Json));
-        itemIdURIs[6] = string(abi.encodePacked(ipfsHash, _itemId6Json));
-        itemIdURIs[7] = string(abi.encodePacked(ipfsHash, _itemId7Json));
+        itemIdURIs[_itemId] = string(abi.encodePacked(ipfsHash, _itemIdJson));
     }
 
     /**
@@ -2863,7 +2974,7 @@ contract ArcaneItemFactoryV1 is Ownable {
         tokenPrice = _newTokenPrice;
     }
 
-    function canMint(address userAddress) external view returns (bool) {
-        return true;
+    function setMintingEnabled(bool _mintingEnabled) external onlyOwner {
+        mintingEnabled = _mintingEnabled;
     }
 }

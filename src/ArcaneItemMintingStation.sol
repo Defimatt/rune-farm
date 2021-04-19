@@ -44,7 +44,7 @@ contract ArcaneItemMintingStation is AccessControl {
     function mint(
         address _tokenReceiver,
         string calldata _tokenURI,
-        uint8 _itemId,
+        uint16 _itemId,
         uint256 _tokenId
     ) external onlyMinter returns (uint256) {
         uint256 tokenId =

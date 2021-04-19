@@ -3046,7 +3046,7 @@ contract ArcaneCharacterFactoryV4 is Ownable {
         tokenPrice = _newTokenPrice;
     }
 
-    function canMint(address userAddress) external view returns (bool) {
+    function canMint() external view returns (bool) {
         return true;
     }
 }
