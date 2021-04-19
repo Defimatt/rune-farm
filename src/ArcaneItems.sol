@@ -25,7 +25,7 @@ contract ArcaneItems is ERC721, Ownable {
     // Map the itemName for a tokenId
     mapping(uint16 => string) public itemNames;
 
-    constructor(string memory _baseURI) public ERC721("Arcane Items", "AI") {
+    constructor(string memory _baseURI) public ERC721("Arcane Items TEST", "AIT") {
         _setBaseURI(_baseURI);
     }
 

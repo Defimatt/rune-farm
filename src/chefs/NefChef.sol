@@ -30,9 +30,9 @@ contract NefChef is Ownable, ERC721Holder {
 
     // Info of each user.
     struct UserInfo {
+        ArcaneItemFactoryV1.ArcaneItem[] items; // Equiped items
         uint256 amount;         // How many LP tokens the user has provided.
         uint256 rewardDebt;     // Reward debt. See explanation below.
-        ArcaneItemFactoryV1.ArcaneItem[] items; // Equiped items
         //
         // We do some fancy math here. Basically, any point in time, the amount of RUNEs
         // entitled to a user but is pending to be distributed is:
@@ -94,7 +94,7 @@ contract NefChef is Ownable, ERC721Holder {
     // Map if address has already claimed their Worldstone Shard
     mapping(address => bool) public hasClaimedShard;
 
-    uint accumulatedFarmingBonus = 0;
+    uint256 accumulatedFarmingBonus = 0;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -225,6 +225,7 @@ contract NefChef is Ownable, ERC721Holder {
         rune.mint(vaultAddress, runeReward.mul(vaultMintPercent).div(10000));
         rune.mint(charityAddress, runeReward.mul(charityMintPercent).div(10000));
         rune.mint(address(this), runeReward);
+
         pool.accRunePerShare = pool.accRunePerShare.add(runeReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
     }
@@ -300,7 +301,7 @@ contract NefChef is Ownable, ERC721Holder {
 
         ArcaneItemFactoryV1.ArcaneItemModifier[] memory mods = new ArcaneItemFactoryV1.ArcaneItemModifier[](17);
         uint l = 70;
-        for (uint i = 6; i+4 < l; i+4) {
+        for (uint i = 5; i+4 < l; i+4) {
             uint8 _variant = uint8(stringToUint(getSlice(i, i+1, tokenIdStr)));
             uint16 _value = uint16(stringToUint(getSlice(i+1, i+4, tokenIdStr)));
 
@@ -355,7 +356,7 @@ contract NefChef is Ownable, ERC721Holder {
         // Require they have an active profile
         ArcaneProfile.User memory user = getUserProfile(_msgSender());
 
-        require(user.isActive == true, "User profile must be active");
+        require(user.isActive == true, "User must be active");
 
         // Loads the interface to deposit the NFT contract
         IERC721 nftToken = IERC721(itemsAddress);
@@ -370,15 +371,41 @@ contract NefChef is Ownable, ERC721Holder {
         ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
 
         if (item.itemId == 1 && item.version == 1) {
-            uint16 farmingBonusPercent = item.mods[0].value; // 1-20
+            uint256 farmingBonusPercent = item.mods[0].value;
 
             accumulatedFarmingBonus = accumulatedFarmingBonus + farmingBonusPercent;
         }
     }
 
+    function unequipItem(uint256 _tokenId) public {
+        // Require they have an active profile
+        ArcaneProfile.User memory user = getUserProfile(_msgSender());
+
+        require(user.isActive == true, "User must be active");
+
+        // Loads the interface to deposit the NFT contract
+        IERC721 nftToken = IERC721(itemsAddress);
+
+        require(_msgSender() == nftToken.ownerOf(_tokenId), "Only NFT owner can register");
+        userEquippedItems[_msgSender()].push(_tokenId);
+
+        ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
+
+        if (item.itemId == 1 && item.version == 1) {
+            uint256 farmingBonusPercent = item.mods[0].value;
+
+            accumulatedFarmingBonus = accumulatedFarmingBonus - farmingBonusPercent;
+        }
+
+        // Transfer NFT to this contract
+        nftToken.safeTransferFrom(address(this), _msgSender(), _tokenId);
+    }
+
     // Deposit LP tokens to MasterChef for RUNE allocation.
     function deposit(uint256 _pid, uint256 _amount) public {
         ArcaneProfile.User memory arcaneUser = getUserProfile(_msgSender());
+
+        require(arcaneUser.isActive == true, "User must be active");
 
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
@@ -391,6 +418,9 @@ contract NefChef is Ownable, ERC721Holder {
                     ArcaneItemFactoryV1.ArcaneItem memory item = getItem(userEquippedItems[_msgSender()][i]);
 
                     if (item.itemId == 1 && item.version == 1) {
+                        uint16 range = 15 - 5;
+                        pending = pending.add(pending.mul(range).mul(item.mods[0].value).div(10000));
+                            
                         if (item.mods[1].value > 0) {
                             IBEP20 feeToken;
                             if (item.mods[2].value == 1) {
@@ -401,7 +431,8 @@ contract NefChef is Ownable, ERC721Holder {
                                 feeToken = runeToken;
                             }
 
-                            uint256 feeAmount = pending.mul(item.mods[1].value).div(100);
+                            uint16 range = 1 - 0;
+                            uint256 feeAmount = pending.mul(range).mul(item.mods[1].value).div(10000);
                             feeToken.safeTransferFrom(address(msg.sender), vaultAddress, feeAmount);
                             
                             emit HarvestFee(vaultAddress, feeAmount);

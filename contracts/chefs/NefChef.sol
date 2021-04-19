@@ -1179,52 +1179,6 @@ contract NefRune is BEP20('Nef', 'NEF') {
 
 pragma solidity >=0.6.0 <0.8.0;
 
-/**
- * @title ERC721 token receiver interface
- * @dev Interface for any contract that wants to support safeTransfers
- * from ERC721 asset contracts.
- */
-interface IERC721Receiver {
-    /**
-     * @dev Whenever an {IERC721} `tokenId` token is transferred to this contract via {IERC721-safeTransferFrom}
-     * by `operator` from `from`, this function is called.
-     *
-     * It must return its Solidity selector to confirm the token transfer.
-     * If any other value is returned or the interface is not implemented by the recipient, the transfer will be reverted.
-     *
-     * The selector can be obtained in Solidity with `IERC721.onERC721Received.selector`.
-     */
-    function onERC721Received(
-        address operator,
-        address from,
-        uint256 tokenId,
-        bytes calldata data
-    ) external returns (bytes4);
-}
-
-
-/**
- * @dev Implementation of the {IERC721Receiver} interface.
- *
- * Accepts all token transfers.
- * Make sure the contract is able to use its token with {IERC721-safeTransferFrom}, {IERC721-approve} or {IERC721-setApprovalForAll}.
- */
-contract ERC721Holder is IERC721Receiver {
-    /**
-     * @dev See {IERC721Receiver-onERC721Received}.
-     *
-     * Always returns `IERC721Receiver.onERC721Received.selector`.
-     */
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes memory
-    ) public virtual override returns (bytes4) {
-        return this.onERC721Received.selector;
-    }
-}
-
 
 /**
  * @title Counters
@@ -1526,6 +1480,32 @@ interface IERC721Receiver {
         bytes calldata data
     ) external returns (bytes4);
 }
+
+
+pragma solidity >=0.6.0 <0.8.0;
+
+/**
+ * @dev Implementation of the {IERC721Receiver} interface.
+ *
+ * Accepts all token transfers.
+ * Make sure the contract is able to use its token with {IERC721-safeTransferFrom}, {IERC721-approve} or {IERC721-setApprovalForAll}.
+ */
+contract ERC721Holder is IERC721Receiver {
+    /**
+     * @dev See {IERC721Receiver-onERC721Received}.
+     *
+     * Always returns `IERC721Receiver.onERC721Received.selector`.
+     */
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes memory
+    ) public virtual override returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+}
+
 
 // File: @openzeppelin/contracts/introspection/ERC165.sol
 
@@ -2957,7 +2937,7 @@ contract ArcaneItems is ERC721, Ownable {
     // Map the itemName for a tokenId
     mapping(uint16 => string) public itemNames;
 
-    constructor(string memory _baseURI) public ERC721("Arcane Items", "AI") {
+    constructor(string memory _baseURI) public ERC721("Arcane Items TEST", "AIT") {
         _setBaseURI(_baseURI);
     }
 
@@ -3374,10 +3354,11 @@ contract ArcaneItemFactoryV1 is Ownable {
     // Map the token number to URI
     mapping(uint16 => string) private itemIdURIs;
 
+    // ArcaneRecipe[] public recipes;
     mapping(address => mapping(address => ArcaneRecipe)) public recipes;
 
     // Is minting enabled
-    bool private mintingEnabled;
+    bool private mintingEnabled = true;
 
     uint8 public constant version = 1;
 
@@ -3391,11 +3372,11 @@ contract ArcaneItemFactoryV1 is Ownable {
     struct ArcaneRecipe {
         uint16 version;
         uint16 itemId;
-        ArcaneRecipeModifier[] mods;
+        mapping(uint8 => ArcaneRecipeModifier) mods;
     }
 
     struct ArcaneRecipeModifier {
-        ArcaneItemModifier mod;
+        uint8 variant;
         uint16 minRange;
         uint16 maxRange;
         uint16 difficulty;
@@ -3426,27 +3407,18 @@ contract ArcaneItemFactoryV1 is Ownable {
         startBlockNumber = _startBlockNumber;
     }
 
-    function addRecipe(address _item1, address _item2, uint16 _version, uint16 _itemId, ArcaneRecipeModifier[] memory _mods) external onlyOwner {
-        ArcaneRecipeModifier[] memory _mods2 = new ArcaneRecipeModifier[](_mods.length);
+    function setRecipe(address _item1, address _item2, uint16 _version, uint16 _itemId) external onlyOwner {
+        recipes[_item1][_item2].version = _version;
+        recipes[_item1][_item2].itemId = _itemId;
+    }
 
-        for(uint i = 0; i < _mods.length; i++) {
-            ArcaneRecipeModifier memory mod = _mods[i];
-            _mods2[i] = ArcaneRecipeModifier({
-                mod: ArcaneItemModifier({
-                    variant: mod.mod.variant,
-                    value: mod.mod.value
-                }),
-                minRange: mod.minRange,
-                maxRange: mod.maxRange,
-                difficulty: mod.difficulty
-            });
-        }
+    function setRecipeMod(address _item1, address _item2, uint8 _index, uint8 _variant, uint16 _minRange, uint16 _maxRange, uint16 _difficulty) external onlyOwner {
+        // ArcaneRecipe memory recipe = recipes[_item1][_item2];
 
-        recipes[_item1][_item2] = ArcaneRecipe({
-            version: _version,
-            itemId: _itemId,
-            mods: _mods
-        });
+        recipes[_item1][_item2].mods[_index].variant = _variant;
+        recipes[_item1][_item2].mods[_index].minRange = _minRange;
+        recipes[_item1][_item2].mods[_index].maxRange = _maxRange;
+        recipes[_item1][_item2].mods[_index].difficulty = _difficulty;
     }
 
     uint public randNonce;
@@ -3505,15 +3477,27 @@ contract ArcaneItemFactoryV1 is Ownable {
         return string(abi.encodePacked(a, b, c, d, e));
     }
 
-    function getTokenIdFromRecipe(ArcaneRecipe memory recipe) public returns (uint256) {
+    function pad(string memory str, uint8 length) internal pure returns (string memory) {
+        string memory padding = "000000000";
+
+        if (length > str.length) {
+            return string(abi.encodePacked(0, getSlice(length - str.length), str));
+        } else {
+            return str;
+        }
+    }
+
+    function getTokenIdFromRecipe(ArcaneRecipe storage recipe) internal returns (uint256) {
         string memory _version = uintToString(recipe.version);
         string memory itemId = uintToString(recipe.itemId);
-        string memory mod1 = uintToString(recipe.mods[0].mod.variant);
-        string memory mod2 = uintToString(recipe.mods[0].minRange + randMod(recipe.mods[0].maxRange));
-        string memory mod3 = uintToString(recipe.mods[0].mod.variant);
-        string memory mod4 = uintToString(recipe.mods[1].minRange + randMod(recipe.mods[1].maxRange));
+        string memory mod1 = uintToString(recipe.mods[0].variant);
+        string memory mod2 = recipe.mods[0].minRange == recipe.mods[0].maxRange ? uintToString(recipe.mods[0].minRange) : uintToString(recipe.mods[0].minRange + randMod(recipe.mods[0].maxRange));
+        string memory mod3 = uintToString(recipe.mods[1].variant);
+        string memory mod4 = recipe.mods[1].minRange == recipe.mods[1].maxRange ? uintToString(recipe.mods[1].minRange) : uintToString(recipe.mods[1].minRange + randMod(recipe.mods[1].maxRange));
+        string memory mod5 = uintToString(recipe.mods[2].variant);
+        string memory mod6 = recipe.mods[2].minRange == recipe.mods[2].maxRange ? uintToString(recipe.mods[2].minRange) : uintToString(recipe.mods[2].minRange + randMod(recipe.mods[2].maxRange));
 
-        return uint256(stringToUint(string(abi.encodePacked(_version, itemId, mod1, mod2, mod3, mod4))));
+        return uint256(stringToUint(string(abi.encodePacked(pad(_version, 2), pad(itemId, 5), pad(mod1, 3), pad(mod2, 3), pad(mod3, 3), pad(mod4, 3), pad(mod5, 3), pad(mod6, 3)))));
     }
 
     /**
@@ -3525,7 +3509,7 @@ contract ArcaneItemFactoryV1 is Ownable {
         
         address senderAddress = _msgSender();
 
-        ArcaneRecipe memory recipe = recipes[_item1][_item2];
+        ArcaneRecipe storage recipe = recipes[_item1][_item2];
 
         // Check block time is not too late
         require(block.number > startBlockNumber, "too early");
@@ -3536,8 +3520,6 @@ contract ArcaneItemFactoryV1 is Ownable {
         }
 
         string memory tokenURI = itemIdURIs[recipe.itemId];
-
-        // TODO random mods
 
         uint16 _itemId = recipe.itemId;
         uint256 _tokenId = getTokenIdFromRecipe(recipe);
@@ -4260,9 +4242,9 @@ contract NefChef is Ownable, ERC721Holder {
 
     // Info of each user.
     struct UserInfo {
+        ArcaneItemFactoryV1.ArcaneItem[] items; // Equiped items
         uint256 amount;         // How many LP tokens the user has provided.
         uint256 rewardDebt;     // Reward debt. See explanation below.
-        ArcaneItemFactoryV1.ArcaneItem[] items; // Equiped items
         //
         // We do some fancy math here. Basically, any point in time, the amount of RUNEs
         // entitled to a user but is pending to be distributed is:
@@ -4324,7 +4306,7 @@ contract NefChef is Ownable, ERC721Holder {
     // Map if address has already claimed their Worldstone Shard
     mapping(address => bool) public hasClaimedShard;
 
-    uint accumulatedFarmingBonus = 0;
+    uint256 accumulatedFarmingBonus = 0;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -4455,6 +4437,7 @@ contract NefChef is Ownable, ERC721Holder {
         rune.mint(vaultAddress, runeReward.mul(vaultMintPercent).div(10000));
         rune.mint(charityAddress, runeReward.mul(charityMintPercent).div(10000));
         rune.mint(address(this), runeReward);
+
         pool.accRunePerShare = pool.accRunePerShare.add(runeReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
     }
@@ -4530,7 +4513,7 @@ contract NefChef is Ownable, ERC721Holder {
 
         ArcaneItemFactoryV1.ArcaneItemModifier[] memory mods = new ArcaneItemFactoryV1.ArcaneItemModifier[](17);
         uint l = 70;
-        for (uint i = 6; i+4 < l; i+4) {
+        for (uint i = 5; i+4 < l; i+4) {
             uint8 _variant = uint8(stringToUint(getSlice(i, i+1, tokenIdStr)));
             uint16 _value = uint16(stringToUint(getSlice(i+1, i+4, tokenIdStr)));
 
@@ -4585,7 +4568,7 @@ contract NefChef is Ownable, ERC721Holder {
         // Require they have an active profile
         ArcaneProfile.User memory user = getUserProfile(_msgSender());
 
-        require(user.isActive == true, "User profile must be active");
+        require(user.isActive == true, "User must be active");
 
         // Loads the interface to deposit the NFT contract
         IERC721 nftToken = IERC721(itemsAddress);
@@ -4600,15 +4583,41 @@ contract NefChef is Ownable, ERC721Holder {
         ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
 
         if (item.itemId == 1 && item.version == 1) {
-            uint16 farmingBonusPercent = item.mods[0].value; // 1-20
+            uint256 farmingBonusPercent = item.mods[0].value;
 
             accumulatedFarmingBonus = accumulatedFarmingBonus + farmingBonusPercent;
         }
     }
 
+    function unequipItem(uint256 _tokenId) public {
+        // Require they have an active profile
+        ArcaneProfile.User memory user = getUserProfile(_msgSender());
+
+        require(user.isActive == true, "User must be active");
+
+        // Loads the interface to deposit the NFT contract
+        IERC721 nftToken = IERC721(itemsAddress);
+
+        require(_msgSender() == nftToken.ownerOf(_tokenId), "Only NFT owner can register");
+        userEquippedItems[_msgSender()].push(_tokenId);
+
+        ArcaneItemFactoryV1.ArcaneItem memory item = getItem(_tokenId);
+
+        if (item.itemId == 1 && item.version == 1) {
+            uint256 farmingBonusPercent = item.mods[0].value;
+
+            accumulatedFarmingBonus = accumulatedFarmingBonus - farmingBonusPercent;
+        }
+
+        // Transfer NFT to this contract
+        nftToken.safeTransferFrom(address(this), _msgSender(), _tokenId);
+    }
+
     // Deposit LP tokens to MasterChef for RUNE allocation.
     function deposit(uint256 _pid, uint256 _amount) public {
         ArcaneProfile.User memory arcaneUser = getUserProfile(_msgSender());
+
+        require(arcaneUser.isActive == true, "User must be active");
 
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
@@ -4621,6 +4630,9 @@ contract NefChef is Ownable, ERC721Holder {
                     ArcaneItemFactoryV1.ArcaneItem memory item = getItem(userEquippedItems[_msgSender()][i]);
 
                     if (item.itemId == 1 && item.version == 1) {
+                        uint16 range = 15 - 5;
+                        pending = pending.add(pending.mul(range).mul(item.mods[0].value).div(10000));
+                            
                         if (item.mods[1].value > 0) {
                             IBEP20 feeToken;
                             if (item.mods[2].value == 1) {
@@ -4631,7 +4643,8 @@ contract NefChef is Ownable, ERC721Holder {
                                 feeToken = runeToken;
                             }
 
-                            uint256 feeAmount = pending.mul(item.mods[1].value).div(100);
+                            uint16 range = 1 - 0;
+                            uint256 feeAmount = pending.mul(range).mul(item.mods[1].value).div(10000);
                             feeToken.safeTransferFrom(address(msg.sender), vaultAddress, feeAmount);
                             
                             emit HarvestFee(vaultAddress, feeAmount);
