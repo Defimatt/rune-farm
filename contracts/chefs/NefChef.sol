@@ -980,7 +980,7 @@ pragma solidity 0.6.12;
 
 
 // Nef Rune
-contract NefRune is BEP20('Nef Test', 'NEFTEST') {
+contract NefRune is BEP20('Nef', 'NEF') {
     uint256 public vaultFee = 0;
     uint256 public charityFee = 0;
     uint256 public devFee = 0;
@@ -3077,7 +3077,7 @@ contract ArcaneItems is ERC721, Ownable {
     // Map the itemName for a tokenId
     mapping(uint16 => string) public itemNames;
 
-    constructor(string memory _baseURI) public ERC721("Arcane Items TEST", "AIT") {
+    constructor(string memory _baseURI) public ERC721("Arcane Items", "AI") {
         _setBaseURI(_baseURI);
     }
 
@@ -3441,8 +3441,8 @@ contract ArcaneItemFactoryV1 is Ownable {
             runeToken.safeTransferFrom(senderAddress, vaultAddress, tokenPrice);
         }
 
-        elToken.safeTransferFrom(senderAddress, vaultAddress, 1 ether / 10);
-        tirToken.safeTransferFrom(senderAddress, vaultAddress, 1 ether / 10);
+        elToken.safeTransferFrom(senderAddress, vaultAddress, 1 ether);
+        tirToken.safeTransferFrom(senderAddress, vaultAddress, 1 ether);
 
         string memory tokenURI = itemIdURIs[recipe.itemId];
 
@@ -4266,7 +4266,7 @@ contract NefChef is Ownable, ERC721Holder {
         elToken = 0x210C14fbeCC2BD9B6231199470DA12AD45F64D45;
         eldToken = 0xe00B8109bcB70B1EDeb4cf87914efC2805020995;
         tirToken = 0x125a3E00a9A11317d4d95349E68Ba0bC744ADDc4;
-        nefToken = 0xBfd3BfaD349fbC96EBAEC737f49239eE5168151F;
+        nefToken = address(_rune);
     }
 
     function poolLength() external view returns (uint256) {
@@ -4605,15 +4605,15 @@ contract NefChef is Ownable, ERC721Holder {
                             }
 
                             uint256 feeAmount = pending.mul(item.mods[1].value).div(100);
-                            IBEP20(feeToken).safeTransferFrom(address(msg.sender), vaultAddress, feeAmount);
+                            safeBepTransfer(feeToken, address(msg.sender), vaultAddress, feeAmount);
                             
-                            emit HarvestFee(vaultAddress, feeAmount);
+                            // emit HarvestFee(vaultAddress, feeAmount);
                         }
 
                         uint256 bonusAmount = pending.mul(item.mods[0].value).div(100);
-                        IBEP20(nefToken).safeTransferFrom(vaultAddress, address(msg.sender), bonusAmount);
+                        safeBepTransfer(nefToken, vaultAddress, address(msg.sender), bonusAmount);
 
-                        emit HarvestBonus(address(msg.sender), bonusAmount);
+                        // emit HarvestBonus(msg.sender, bonusAmount);
                     }
                 }
                 safeRuneTransfer(msg.sender, pending);
@@ -4660,15 +4660,15 @@ contract NefChef is Ownable, ERC721Holder {
                         }
 
                         uint256 feeAmount = pending.mul(item.mods[1].value).div(100);
-                        IBEP20(feeToken).safeTransferFrom(address(msg.sender), vaultAddress, feeAmount);
+                        safeBepTransfer(feeToken, address(msg.sender), vaultAddress, feeAmount);
                         
-                        emit HarvestFee(vaultAddress, feeAmount);
+                        // emit HarvestFee(vaultAddress, feeAmount);
                     }
 
                     uint256 bonusAmount = pending.mul(item.mods[0].value).div(100);
-                    IBEP20(nefToken).safeTransferFrom(vaultAddress, address(msg.sender), bonusAmount);
+                    safeBepTransfer(nefToken, vaultAddress, address(msg.sender), bonusAmount);
 
-                    emit HarvestBonus(address(msg.sender), bonusAmount);
+                    // emit HarvestBonus(msg.sender, bonusAmount);
                 }
             }
             safeRuneTransfer(msg.sender, pending);
@@ -4699,6 +4699,16 @@ contract NefChef is Ownable, ERC721Holder {
             rune.transfer(_to, runeBal);
         } else {
             rune.transfer(_to, _amount);
+        }
+    }
+
+    function safeBepTransfer(address _tokenAddress, address _from, address _to, uint256 _amount) internal {
+        IBEP20 _token = BEP20(_tokenAddress);
+        uint256 _bal = _token.balanceOf(_from);
+        if (_amount > _bal) {
+            _token.safeTransferFrom(_from, _to, _bal);
+        } else {
+            _token.safeTransferFrom(_from, _to, _amount);
         }
     }
 

@@ -105,7 +105,6 @@ contract NefChef is Ownable, ERC721Holder {
 
     constructor(
         NefRune _rune,
-        address _nefTokenAddress,
         address _profileAddress,
         address _itemMintingStationAddress,
         address _itemsAddress,
@@ -130,7 +129,7 @@ contract NefChef is Ownable, ERC721Holder {
         elToken = 0x210C14fbeCC2BD9B6231199470DA12AD45F64D45;
         eldToken = 0xe00B8109bcB70B1EDeb4cf87914efC2805020995;
         tirToken = 0x125a3E00a9A11317d4d95349E68Ba0bC744ADDc4;
-        nefToken = _nefTokenAddress;
+        nefToken = address(_rune);
     }
 
     function poolLength() external view returns (uint256) {
@@ -469,15 +468,15 @@ contract NefChef is Ownable, ERC721Holder {
                             }
 
                             uint256 feeAmount = pending.mul(item.mods[1].value).div(100);
-                            IBEP20(feeToken).safeTransferFrom(address(msg.sender), vaultAddress, feeAmount);
+                            safeBepTransfer(feeToken, address(msg.sender), vaultAddress, feeAmount);
                             
-                            emit HarvestFee(vaultAddress, feeAmount);
+                            // emit HarvestFee(vaultAddress, feeAmount);
                         }
 
                         uint256 bonusAmount = pending.mul(item.mods[0].value).div(100);
-                        IBEP20(nefToken).safeTransferFrom(vaultAddress, address(msg.sender), bonusAmount);
+                        safeBepTransfer(nefToken, vaultAddress, address(msg.sender), bonusAmount);
 
-                        emit HarvestBonus(msg.sender, bonusAmount);
+                        // emit HarvestBonus(msg.sender, bonusAmount);
                     }
                 }
                 safeRuneTransfer(msg.sender, pending);
@@ -524,15 +523,15 @@ contract NefChef is Ownable, ERC721Holder {
                         }
 
                         uint256 feeAmount = pending.mul(item.mods[1].value).div(100);
-                        IBEP20(feeToken).safeTransferFrom(address(msg.sender), vaultAddress, feeAmount);
+                        safeBepTransfer(feeToken, address(msg.sender), vaultAddress, feeAmount);
                         
-                        emit HarvestFee(vaultAddress, feeAmount);
+                        // emit HarvestFee(vaultAddress, feeAmount);
                     }
 
                     uint256 bonusAmount = pending.mul(item.mods[0].value).div(100);
-                    IBEP20(nefToken).safeTransferFrom(vaultAddress, address(msg.sender), bonusAmount);
+                    safeBepTransfer(nefToken, vaultAddress, address(msg.sender), bonusAmount);
 
-                    emit HarvestBonus(msg.sender, bonusAmount);
+                    // emit HarvestBonus(msg.sender, bonusAmount);
                 }
             }
             safeRuneTransfer(msg.sender, pending);
@@ -563,6 +562,16 @@ contract NefChef is Ownable, ERC721Holder {
             rune.transfer(_to, runeBal);
         } else {
             rune.transfer(_to, _amount);
+        }
+    }
+
+    function safeBepTransfer(address _tokenAddress, address _from, address _to, uint256 _amount) internal {
+        IBEP20 _token = BEP20(_tokenAddress);
+        uint256 _bal = _token.balanceOf(_from);
+        if (_amount > _bal) {
+            _token.safeTransferFrom(_from, _to, _bal);
+        } else {
+            _token.safeTransferFrom(_from, _to, _amount);
         }
     }
 

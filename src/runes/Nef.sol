@@ -3,7 +3,7 @@ pragma solidity 0.6.12;
 import "../lib/token/BEP20/BEP20.sol";
 
 // Nef Rune
-contract NefRune is BEP20('Nef Test', 'NEFTEST') {
+contract NefRune is BEP20('Nef', 'NEF') {
     uint256 public vaultFee = 0;
     uint256 public charityFee = 0;
     uint256 public devFee = 0;

@@ -2876,7 +2876,7 @@ contract ArcaneItems is ERC721, Ownable {
     // Map the itemName for a tokenId
     mapping(uint16 => string) public itemNames;
 
-    constructor(string memory _baseURI) public ERC721("Arcane Items TEST", "AIT") {
+    constructor(string memory _baseURI) public ERC721("Arcane Items", "AI") {
         _setBaseURI(_baseURI);
     }
 
@@ -3240,8 +3240,8 @@ contract ArcaneItemFactoryV1 is Ownable {
             runeToken.safeTransferFrom(senderAddress, vaultAddress, tokenPrice);
         }
 
-        elToken.safeTransferFrom(senderAddress, vaultAddress, 1 ether / 10);
-        tirToken.safeTransferFrom(senderAddress, vaultAddress, 1 ether / 10);
+        elToken.safeTransferFrom(senderAddress, vaultAddress, 1 ether);
+        tirToken.safeTransferFrom(senderAddress, vaultAddress, 1 ether);
 
         string memory tokenURI = itemIdURIs[recipe.itemId];
 
