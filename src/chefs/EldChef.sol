@@ -1,9 +1,9 @@
 pragma solidity 0.6.12;
 
-import "../lib/math/SafeMath.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "../lib/token/BEP20/IBEP20.sol";
 import "../lib/token/BEP20/SafeBEP20.sol";
-import "../lib/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "../runes/Eld.sol";
 

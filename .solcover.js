@@ -1,16 +1,15 @@
-// Contracts are compiled without optimization
-// and with gas estimation distortion
-// https://github.com/sc-forks/solidity-coverage/blob/master/HARDHAT_README.md#usage
-
 module.exports = {
   skipFiles: [
-    "libs",
-    "libs",
-    "libs",
-    "SyrupBar.sol",
+    "lib",
+    "chefs/TestChef.sol",
+    "runes/Test.sol",
+    "voids/TestVoid.sol",
+    "MasterChef.sol",
     "RuneToken.sol",
-    "Timelock.sol"
+    "Timelock.sol",
+    "TokenTimelock.sol",
+    "Void.sol",
   ],
-  measureStatementCoverage: false,
+  measureStatementCoverage: true,
   measureFunctionCoverage: true,
 };

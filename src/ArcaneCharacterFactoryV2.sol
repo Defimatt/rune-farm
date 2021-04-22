@@ -1,14 +1,16 @@
 pragma solidity ^0.6.12;
 
-import "./ArcaneCharacterMintingStation.sol";
+import "./ArcaneCharacters.sol";
 
-contract ArcaneCharacterFactoryV4 is Ownable {
+contract ArcaneCharacterFactoryV2 is Ownable {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
-    ArcaneCharacterMintingStation public characterMintingStation;
-
+    ArcaneCharacters public arcaneCharacters;
     IBEP20 public runeToken;
+
+    // end block number to get collectibles
+    uint256 public endBlockNumber;
 
     // starting block
     uint256 public startBlockNumber;
@@ -38,55 +40,67 @@ contract ArcaneCharacterFactoryV4 is Ownable {
         uint8 indexed characterId
     );
 
+    /**
+     * @dev A maximum number of NFT tokens that is distributed by this contract
+     * is defined as totalSupplyDistributed.
+     */
     constructor(
-        ArcaneCharacterMintingStation _characterMintingStation,
+        ArcaneCharacters _arcaneCharacters,
         IBEP20 _runeToken,
         uint256 _tokenPrice,
         string memory _ipfsHash,
-        uint256 _startBlockNumber
+        uint256 _startBlockNumber,
+        uint256 _endBlockNumber
     ) public {
-        characterMintingStation = _characterMintingStation;
+        arcaneCharacters = _arcaneCharacters;
         runeToken = _runeToken;
         tokenPrice = _tokenPrice;
         ipfsHash = _ipfsHash;
         startBlockNumber = _startBlockNumber;
+        endBlockNumber = _endBlockNumber;
     }
 
     /**
-     * @dev Allow to change the IPFS hash
-     * Only the owner can set it.
-     */
-    function updateIpfsHash(string memory _ipfsHash) external onlyOwner {
-        ipfsHash = _ipfsHash;
-    }
-
-    /**
-     * @dev Mint NFTs from the CharacterMintingStation contract.
+     * @dev Mint NFTs from the ArcaneCharacters contract.
      * Users can specify what characterId they want to mint. Users can claim once.
+     * There is a limit on how many are distributed. It requires RUNE balance to be > 0.
      */
     function mintNFT(uint8 _characterId) external {
-        address senderAddress = _msgSender();
-
+        // Check _msgSender() has not claimed
+        require(!hasClaimed[_msgSender()], "Has claimed");
         // Check block time is not too late
         require(block.number > startBlockNumber, "too early");
+        // Check block time is not too late
+        require(block.number < endBlockNumber, "too late");
         // Check that the _characterId is within boundary:
         require(_characterId >= previousNumberCharacterIds, "characterId too low");
         // Check that the _characterId is within boundary:
         require(_characterId < numberCharacterIds, "characterId too high");
 
+        // Update that _msgSender() has claimed
+        hasClaimed[_msgSender()] = true;
+
         // Send RUNE tokens to this contract
-        runeToken.safeTransferFrom(senderAddress, address(this), tokenPrice);
+        runeToken.safeTransferFrom(
+            address(_msgSender()),
+            address(this),
+            tokenPrice
+        );
 
         string memory tokenURI = characterIdURIs[_characterId];
 
         uint256 tokenId =
-            characterMintingStation.mintCollectible(
-                senderAddress,
-                tokenURI,
-                _characterId
-            );
+            arcaneCharacters.mint(address(_msgSender()), tokenURI, _characterId);
 
-        emit CharacterMint(senderAddress, tokenId, _characterId);
+        emit CharacterMint(_msgSender(), tokenId, _characterId);
+    }
+
+    /**
+     * @dev It transfers the ownership of the NFT contract
+     * to a new address.
+     */
+    function changeOwnershipNFTContract(address _newOwner) external onlyOwner {
+        arcaneCharacters.transferOwnership(_newOwner);
     }
 
     /**
@@ -98,7 +112,7 @@ contract ArcaneCharacterFactoryV4 is Ownable {
     }
 
     /**
-     * @dev Set up json extensions for characters
+     * @dev Set up json extensions for characters 5-9
      * Assign tokenURI to look for each characterId in the mint function
      * Only the owner can set it.
      */
@@ -133,14 +147,23 @@ contract ArcaneCharacterFactoryV4 is Ownable {
     }
 
     /**
+     * @dev Allow to set up the end block number
+     * Only the owner can set it.
+     */
+    function setEndBlockNumber(uint256 _newEndBlockNumber) external onlyOwner {
+        require(_newEndBlockNumber > block.number, "too short");
+        require(
+            _newEndBlockNumber > startBlockNumber,
+            "must be > startBlockNumber"
+        );
+        endBlockNumber = _newEndBlockNumber;
+    }
+
+    /**
      * @dev Allow to change the token price
      * Only the owner can set it.
      */
     function updateTokenPrice(uint256 _newTokenPrice) external onlyOwner {
         tokenPrice = _newTokenPrice;
-    }
-
-    function canMint() external view returns (bool) {
-        return true;
     }
 }

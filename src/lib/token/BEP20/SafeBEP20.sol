@@ -1,8 +1,8 @@
 pragma solidity ^0.6.0;
 
 import './IBEP20.sol';
-import '../../math/SafeMath.sol';
-import '../../utils/Address.sol';
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title SafeBEP20

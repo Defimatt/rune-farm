@@ -10,6 +10,8 @@ node_modules
 #Buidler files
 cache
 artifacts
+cache/
+typechain/
 coverage
 coverage.json
 .DS_Store
